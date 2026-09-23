@@ -1,0 +1,15 @@
+# offset  name   -- names given after reading the code (hypotheses marked ?)
+00000 entry
+00042 PureC_Start
+01142 Packer_GetType
+0392a Ice_Depack
+042e2 Vbl_Wait?
+010d2 Memory_Free?
+0aec2 LinkFile_Load?
+0a394 Intro_LogosAndTitle
+0d4fc AtariIntro_Load
+0d724 AtariIntro_Run
+0d5cc AtariIntro_Free
+1550c Spline_Load
+15524 Spline_Free
+0ce28 Music_LoadPlayer?

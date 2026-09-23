@@ -1,0 +1,15 @@
+CONTROL
+
+Chu Chu rocket can be played with mouse, 
+keyboard, joysticks or jaguar pads.
+
+{2}PLACING ARROWS: {1}
+Move cursor over desired square.
+Hold down fire - cursor will now change into small arrow sprite.
+Whilst still holding down fire, move in a 
+the direction you want the arrow to point. 
+Release fire to place arrow.
+
+{2}KEYS: {1}
+When playing on keyboard, use cursor keys and space to control the pointer.
+

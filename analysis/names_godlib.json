@@ -1,0 +1,14 @@
+{
+ "103732": "GemDos_Call_LW",
+ "103804": "GemDos_Call_LWW",
+ "103896": "Xbios_Call_PPP",
+ "13042": "IKBD_PopKbdByte",
+ "15480": "ScreenGrab_Vbl",
+ "16000": "Mfp_InstallStandardTimerC",
+ "16032": "Mfp_HookIntoTimerC",
+ "17134": "Video_SaveRegsST",
+ "17274": "Video_SaveRegsSTE",
+ "17530": "Video_SaveRegsFalcon",
+ "18518": "Video_XbiosSetScreen",
+ "7814": "Audio_SoundChipOff"
+}

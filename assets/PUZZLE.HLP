@@ -1,0 +1,14 @@
+PUZZLE
+
+You must guide all chus into a rocket to complete each puzzle.
+If a chu dies or a kapu enters a rocket you lose.
+Chus can die by being eaten by a kapu or falling into a hole.
+You have a set amount of arrows - these are displayed at the bottom of the screen.
+Place all your arrows, then click GO and watch the puzzle progress.
+If you fail the puzzle, the area where it went wrong is highlighted.
+
+{2}Buttons: {1}
+GO		- begin puzzle
+FFWD	- speed up puzzle playback
+REDO	- restart puzzle
+EXIT	- back to menu

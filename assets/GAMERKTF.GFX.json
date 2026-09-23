@@ -1,0 +1,8 @@
+{
+ "type": "GFX",
+ "version": 1,
+ "w": 96,
+ "h": 80,
+ "planes": 4,
+ "mask": 1
+}

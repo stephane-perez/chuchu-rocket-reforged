@@ -1,0 +1,19 @@
+BASICS
+
+Guide mice into rocket and avoid cats for high score.
+
+{2}Glossary: {1}
+Chus	- Mice. 
+Kapus	- Cats.
+Hatch	- These generate Chus and Kapus.
+Rocket	- Goals.
+Holes	- Kill creatures.
+Spinner	- Random event generator
+
+{2}Movement: {1}
+Creatures will move in a straight line until they hit a wall, at which point they always turn right.
+
+{2}Tips: {1}
+Place your arrows to create movement paths for chus and kapus.
+Guide Chus into your rocket.
+Guide Kapus into opponents rocket

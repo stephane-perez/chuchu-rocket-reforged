@@ -1,0 +1,6 @@
+out/
+work/
+ref/
+run/*.avi
+run/hatari_home/
+__pycache__/

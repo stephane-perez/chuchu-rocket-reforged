@@ -1,0 +1,16 @@
+CONTROLS
+
+{2}PAUSE: {1}
+'F1'	Pauses Game.
+
+In pause screen move right to choose 
+CONTinue.Move left to choose QUIT. Press 
+fire to select chosen option
+
+{2}QUIT: {1}
+F10 - Quits game and returns to main menu.
+
+{2}BACK: {1}
+Pressing 'UNDO' (or Fire B on jaguar pads)
+acts as a back button, allowing you to 
+move back through screens in the frontend.
