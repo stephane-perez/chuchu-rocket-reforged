@@ -1,0 +1,7 @@
+# Symbol names are cut to 22 characters in the TOS symbol table used by the
+# profiling tools: keep the first 22 characters of every name unique.
+Screen_Gfx4BP_BlitClipBlt Screen_Gfx4BP_ClipBlt
+LevelSelect_DrawButtonsOn LevelSel_DrawButtonsOn
+LevelSelect_DrawButtonsOff LevelSel_DrawButtonsOff
+LevelSelect_RedrawButtonOn LevelSel_RedrawBtnOn
+LevelSelect_RedrawButtonOff LevelSel_RedrawBtnOff

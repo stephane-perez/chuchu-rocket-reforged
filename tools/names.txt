@@ -1,5 +1,5 @@
 # offset  name   -- names given after reading the code (hypotheses marked ?)
-00000 entry
+00000 ProgramEntry
 00042 PureC_Start
 01142 Packer_GetType
 0392a Ice_Depack
@@ -13,3 +13,12 @@
 1550c Spline_Load
 15524 Spline_Free
 0ce28 Music_LoadPlayer?
+00bce Ikbd_MouseMode
+00bbc Ikbd_JoystickMode
+0664e Controls_ApplyIkbdMode
+0ae7e Game_Exit
+0ae40 Game_Init
+0ad50 Game_Main
+00b3a Ikbd_DeInit
+00a8a Ikbd_Init
+0334c Ikbd_SendByte

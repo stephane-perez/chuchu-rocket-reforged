@@ -1,0 +1,463 @@
+# ============================================================================
+# Range E : F_10960 .. F_14780  (render modules, HUD, results, screen, spinner,
+# starfield, dirty-cell restore). Written by agent E.
+# Module life cycle: every render module has Init (called once by F_107e2 at
+# program start), Begin (called by Render_InitAll at each round start) and
+# DeInit (called by Render_FreeAll at program exit). Many are empty rts hooks.
+# "Low memory" below means F_0aac0 returned 1 (machine has less than 2 MB):
+# then many graphics are not kept resident but come from the GfxBank groups.
+# ============================================================================
+
+# ---- Render module list ----------------------------------------------------
+
+# ---- GfxBank : graphics file groups (for machines with < 2 MB) --------------
+F_10a6c GfxBank_Init
+@GfxBank_Init GfxBank_Init() : clear the 5 file groups of GfxBankFileTable (35 entries of
+@GfxBank_Init 18 bytes: +0 packed data, +4 unpacked data, +8 file size, +$c unpacked size,
+@GfxBank_Init +$10 loaded flag, +$11 unpacked flag). On low memory, allocate one shared
+@GfxBank_Init depack buffer as big as the largest group and preload every group packed.
+F_10b20 GfxBank_DeInit
+@GfxBank_DeInit GfxBank_DeInit() : free the files of the 5 groups and the shared depack buffer.
+F_10b46 GfxBank_LoadGroup
+@GfxBank_LoadGroup GfxBank_LoadGroup(d0 = group 0-4) : load (packed) every file of the group
+@GfxBank_LoadGroup not loaded yet. A packed file gets a slice of the shared depack buffer
+@GfxBank_LoadGroup as its unpacked address; an unpacked file is used in place.
+F_10c92 GfxBank_DepackGroup
+@GfxBank_DepackGroup GfxBank_DepackGroup(d0 = group) : copy each packed file of the group into its
+@GfxBank_DepackGroup slice of the shared buffer and depack it there (marks it unpacked).
+F_10d18 GfxBank_ReleaseGroup
+@GfxBank_ReleaseGroup GfxBank_ReleaseGroup(d0 = group) : mark the group's files as no longer
+@GfxBank_ReleaseGroup unpacked (the shared buffer is about to be reused by another group).
+F_10d62 GfxBank_FreeGroup
+@GfxBank_FreeGroup GfxBank_FreeGroup(d0 = group) : Memory_Free every loaded file of the group.
+F_10dc2 GfxBank_GetGroupSize
+@GfxBank_GetGroupSize d0.l = GfxBank_GetGroupSize(d0 = group) : total unpacked size of the
+@GfxBank_GetGroupSize group's files (read from the link file directory).
+F_10e0c GfxBank_GetFile
+@GfxBank_GetFile a0 = GfxBank_GetFile(d0 = group, d1 = file index) : unpacked data of that file.
+F_10e30 GfxBank_SelectGroup
+@GfxBank_SelectGroup GfxBank_SelectGroup(d0 = group) : low memory only. Makes a group resident in
+@GfxBank_SelectGroup the shared buffer (release old, load + depack new), then lets the modules
+@GfxBank_SelectGroup re-fetch their sprite pointers: 0 congrats, 1 front end, 2 in-game
+@GfxBank_SelectGroup (Pause/Hud/Spinner), 3 level select, 4 results.
+B_2d796 gGfxBankGroups
+@gGfxBankGroups 5 pointers to the first entry of each group inside gGfxBankEntries.
+B_2d7aa gGfxBankEntries
+B_2da20 gGfxBankBuffer
+B_2da28 gGfxBankCurrent
+D_1b136 GfxBankFileTable
+@GfxBankFileTable 5 words = files per group (1,11,10,8,5) then 5 pointers to (id, name)
+@GfxBankFileTable lists: 0 CONGRATS.BSB, 1 front end (FRONT.PI1, FLAME.GFX...), 2 in game
+@GfxBankFileTable (PAUSE, SPINNER, SPINEDGE, ARROWBOX, PUZBUT1/0, SCMODE, TIMEPANL, ROCKTIME,
+@GfxBankFileTable PUZPANEL), 3 level select (LEV*.BSB, SELECT.PI1), 4 results (STAGCOMP...TIMEBIT).
+
+# ---- Congrats : "world completed / unlocked" message screen -----------------
+F_10ec6 Congrats_Init
+@Congrats_Init Congrats_Init() : copy the 5 message pointers of CongratsMessages into gCongratsMessages.
+F_10eee Congrats_Begin
+@Congrats_Begin Congrats_Begin() : empty per-round hook.
+F_10ef0 Congrats_DeInit
+@Congrats_DeInit Congrats_DeInit() : empty hook.
+F_10ef2 Congrats_DrawMessage
+@Congrats_DrawMessage Congrats_DrawMessage(d0 = message 0-4) : on the logic screen draw a framed
+@Congrats_DrawMessage box, then the message split at each '#' into lines, each line centred
+@Congrats_DrawMessage with font 2, its own colour and line spacing from the table after the box rect.
+F_1102e Congrats_Show
+@Congrats_Show Congrats_Show(d0 = message) : fade to black, clear the screens, draw the message
+@Congrats_Show on both buffers, fade in, play a jingle and wait until fire or key $44 is
+@Congrats_Show pressed (fresh press) and released, then fade out and clear again.
+B_2da2a gCongratsMessages
+D_1b30a CongratsMessages
+@CongratsMessages 5 texts: easy, hard, special, mania world completed, stage challenge completed.
+D_1b306 CongratsBoxRect
+
+# ---- RoundMsg : "OUT OF TIME" / "YOU LOST!" boxes ----------------------------
+F_1113c RoundMsg_Init
+@RoundMsg_Init RoundMsg_Init() : empty hook.
+F_1113e RoundMsg_Begin
+@RoundMsg_Begin RoundMsg_Begin() : empty hook.
+F_11140 RoundMsg_DeInit
+@RoundMsg_DeInit RoundMsg_DeInit() : empty hook.
+F_11142 RoundMsg_DrawOutOfTime
+@RoundMsg_DrawOutOfTime RoundMsg_DrawOutOfTime() : draw a filled box (RoundMsgBoxRect) on the
+@RoundMsg_DrawOutOfTime logic screen with "OUT OF TIME" centred in font 2 (puzzle/challenge failed).
+F_111ec RoundMsg_DrawYouLost
+@RoundMsg_DrawYouLost RoundMsg_DrawYouLost() : same box with the text "YOU LOST!".
+D_1b5a6 RoundMsgBoxRect
+
+# ---- OptionsScreen : front-end OPTIONS page ----------------------------------
+F_11296 OptionsScreen_Init
+@OptionsScreen_Init OptionsScreen_Init() : empty hook.
+F_11298 OptionsScreen_Begin
+@OptionsScreen_Begin OptionsScreen_Begin() : empty hook.
+F_1129a OptionsScreen_DeInit
+@OptionsScreen_DeInit OptionsScreen_DeInit() : empty hook.
+F_1129c OptionsScreen_Draw
+@OptionsScreen_Draw OptionsScreen_Draw() : redraw the options page on the logic screen: clear,
+@OptionsScreen_Draw selection marker, title and the 12 option lines (called by F_06b92).
+F_112c0 OptionsScreen_Clear
+@OptionsScreen_Clear OptionsScreen_Clear(a0 = screen) : clear the screen (Screen_Clear).
+F_112c8 OptionsScreen_DrawCursor
+@OptionsScreen_DrawCursor OptionsScreen_DrawCursor(a0 = screen) : print the "O" marker at x=16,
+@OptionsScreen_DrawCursor y = 32 + 12 * selected line (B_236ba).
+F_112fa OptionsScreen_DrawItems
+@OptionsScreen_DrawItems OptionsScreen_DrawItems(a0 = screen) : print "OPTIONS" then for each of the
+@OptionsScreen_DrawItems 12 records of B_235fa (16 bytes: value, choice count, name, value names)
+@OptionsScreen_DrawItems the name at x=32 and, if it has choices, the value name or "%02ld" at x=160.
+
+# ---- Pause : PAUSE.BSB overlay ------------------------------------------------
+F_113c2 Pause_Init
+@Pause_Init Pause_Init() : unless low memory, load PAUSE.BSB into gPauseGfx.
+F_113ea Pause_Begin
+@Pause_Begin Pause_Begin() : empty hook.
+F_113ec Pause_DeInit
+@Pause_DeInit Pause_DeInit() : free PAUSE.BSB (when it was loaded by Pause_Init).
+F_11404 Pause_Draw
+@Pause_Draw Pause_Draw() : draw the PAUSE.BSB frame chosen by F_0ae38 (byte B_2a9c5) at (144,30)
+@Pause_Draw on the logic screen.
+F_11452 Pause_BindGfxGroup
+@Pause_BindGfxGroup Pause_BindGfxGroup() : low memory: take PAUSE.BSB from GfxBank group 2, file 0.
+B_2da3e gPauseGfx
+
+# ---- PlayerLabels : bouncing "PLAYER n" tags at round start -------------------
+F_11474 PlayerLabels_Init
+@PlayerLabels_Init PlayerLabels_Init() : load PLAYERS.BSB ("PLAYER 1".."PLAYER 4", 48x16 each).
+F_11492 PlayerLabels_Begin
+@PlayerLabels_Begin PlayerLabels_Begin() : clear the drawn records (2 screens x 4) and the 4 requests.
+F_114d8 PlayerLabels_DeInit
+@PlayerLabels_DeInit PlayerLabels_DeInit() : free PLAYERS.BSB.
+F_114e6 PlayerLabels_Render
+@PlayerLabels_Render PlayerLabels_Render() : for the logic screen, erase the labels drawn on it two
+@PlayerLabels_Render frames ago (copy back from the background), then draw every pending request
+@PlayerLabels_Render and remember it for the next erase. Records are {active, x, y} words.
+F_1157e PlayerLabels_DrawLabel
+@PlayerLabels_DrawLabel PlayerLabels_DrawLabel(a0 = screen, d0 = player, d1 = x, d2 = y) : draw the
+@PlayerLabels_DrawLabel player's label sprite (clipped drawing functions of the canvas).
+F_115be PlayerLabels_Erase
+@PlayerLabels_Erase PlayerLabels_Erase(d0 = x, d1 = y) : copy a 64-pixel wide, label-high block
+@PlayerLabels_Erase from the background buffer to the logic screen (x rounded down to 16).
+F_1163e PlayerLabels_Show
+@PlayerLabels_Show PlayerLabels_Show(d0 = player, d1 = x, d2 = y) : request the label of that player
+@PlayerLabels_Show at (x,y) for the next PlayerLabels_Render (called by F_0b988).
+B_2da42 gPlayerLabelGfx
+B_2da46 gPlayerLabelDrawn
+@gPlayerLabelDrawn [2 screens][4 players] of {active, x, y} : labels to erase on that screen.
+B_2da76 gPlayerLabelRequests
+
+# ---- Cursors : player pointers (POINTERS.BSB) --------------------------------
+F_1165c CursorGfx_Init
+@CursorGfx_Init CursorGfx_Init() : load POINTERS.BSB into gCursorGfx and make the cursors visible.
+F_11682 CursorGfx_Begin
+@CursorGfx_Begin CursorGfx_Begin() : make the cursors visible again.
+F_1168c CursorGfx_DeInit
+@CursorGfx_DeInit CursorGfx_DeInit() : free POINTERS.BSB.
+F_1169a CursorGfx_Draw
+@CursorGfx_Draw CursorGfx_Draw() : draw the active player cursors on the logic screen board area.
+@CursorGfx_Draw Puzzle mode: only cursor 0, remembered as a rectangle (Dirty_SetCursorRect)
+@CursorGfx_Draw because it can leave the board; other modes: 4 cursors, their cells marked dirty.
+@CursorGfx_Draw A cursor near the right edge also repairs the wrapped pixels (F_16268).
+F_117ea CursorGfx_Hide
+@CursorGfx_Hide CursorGfx_Hide() : stop drawing cursors (rocket launch sequence).
+F_117f2 CursorGfx_Show
+@CursorGfx_Show CursorGfx_Show() : draw cursors again.
+B_2da8e gCursorGfx
+B_2da92 gCursorsVisible
+
+# ---- Results : end-of-round screens ------------------------------------------
+F_117fc Results_Init
+@Results_Init Results_Init() : unless low memory, load STAGCOMP, STCPFONT, WINNERS, DRAW and
+@Results_Init TIMEBIT .BSB into gResultsGfx[5].
+F_118a4 Results_Begin
+@Results_Begin Results_Begin() : empty hook.
+F_118a6 Results_DeInit
+@Results_DeInit Results_DeInit() : free the results sprites (TIMEBIT.BSB is not freed).
+F_118e2 Results_Run
+@Results_Run Results_Run() : end-of-round screen. Selects GfxBank group 4, plays music 7, fades
+@Results_Run out, clears, runs the screen for gGameMode (0 battle, 1 team battle, 2 puzzle,
+@Results_Run 3 stage challenge), then fades out and clears again.
+F_11978 Results_Battle
+@Results_Battle Results_Battle() : battle results: HUD moved to (64,144) with scores shown, the
+@Results_Battle winner (or DRAW) picture, a starfield animated behind it until fire / key $44.
+F_11ac4 Results_DrawBattleWinner
+@Results_DrawBattleWinner Results_DrawBattleWinner(a0 = screen) : draw DRAW.BSB if the round is a draw,
+@Results_DrawBattleWinner else the WINNERS.BSB frame of the winning player; then the HUD scores.
+F_11afe Results_TeamBattle
+@Results_TeamBattle Results_TeamBattle() : same as Results_Battle for team battle.
+F_11c5c Results_DrawTeamWinner
+@Results_DrawTeamWinner Results_DrawTeamWinner(a0 = screen) : compare team scores (players 0+1 vs
+@Results_DrawTeamWinner 2+3), draw WINNERS frame 4 or 5 (or DRAW), then the HUD scores.
+F_11cce Results_StageChallenge
+@Results_StageChallenge Results_StageChallenge() : stage challenge results: stage-complete picture with
+@Results_StageChallenge the stage number and two counters, starfield around it, wait for fire / key $44.
+F_11e14 Results_DrawStageChallenge
+@Results_DrawStageChallenge Results_DrawStageChallenge(a0 = screen) : STAGCOMP.BSB centred, stage number
+@Results_DrawStageChallenge (gLevelIndex+1) in STCPFONT digits, TIMEBIT at (0,152), then "%02d" of the timer 1
+@Results_DrawStageChallenge elapsed seconds+1 (max 40) and "%02d" of B_2a894[B_235da] in NUMFONT0 digits.
+F_11f78 Results_Puzzle
+@Results_Puzzle Results_Puzzle() : puzzle solved screen: stage-complete picture with the level
+@Results_Puzzle number, starfield behind it, wait for fire / key $44.
+F_120be Results_DrawPuzzle
+@Results_DrawPuzzle Results_DrawPuzzle(a0 = screen) : STAGCOMP.BSB centred plus the 2-digit level
+@Results_DrawPuzzle number (gLevelIndex+1) in STCPFONT digits.
+F_12184 Results_DrawWinnerSprite
+@Results_DrawWinnerSprite Results_DrawWinnerSprite(a0 = screen, d0 = frame) : WINNERS.BSB frame at (96,48).
+F_121c8 Results_DrawDrawSprite
+@Results_DrawDrawSprite Results_DrawDrawSprite(a0 = screen) : DRAW.BSB at (96,48).
+F_12204 Results_BindGfxGroup
+@Results_BindGfxGroup Results_BindGfxGroup() : low memory: take the 5 results sprites from group 4.
+B_2da94 gResultsGfx
+@gResultsGfx 5 sprite banks: STAGCOMP, STCPFONT (digits), WINNERS, DRAW, TIMEBIT.
+B_2da98 gResultsDigitGfx
+B_2da9c gResultsWinnersGfx
+B_2daa0 gResultsDrawGfx
+B_2daa4 gResultsTimeBitGfx
+
+# ---- RocketGfx : rockets drawn on the board ----------------------------------
+F_1228e RocketGfx_Init
+@RocketGfx_Init RocketGfx_Init() : load RKTBULGE, RKTCRASH, ROCKETS and ROCKTINY .BSB.
+F_1230e RocketGfx_Begin
+@RocketGfx_Begin RocketGfx_Begin() : draw all rockets of the level into the background buffer.
+F_12322 RocketGfx_DrawAll
+@RocketGfx_DrawAll RocketGfx_DrawAll(a0 = screen) : draw a rocket on every rocket cell of the level,
+@RocketGfx_DrawAll coloured by owner (team colour 4/5 in team battle and stage challenge).
+F_12396 RocketGfx_DeInit
+@RocketGfx_DeInit RocketGfx_DeInit() : free RKTBULGE, RKTCRASH, ROCKETS (not ROCKTINY).
+F_123bc RocketGfx_Update
+@RocketGfx_Update RocketGfx_Update() : per frame, for each rocket record (gRockets list) by state:
+@RocketGfx_Update 2 bulge animation (mouse entered), 3 crash animation (cat entered), 4 rocket
+@RocketGfx_Update sprite at its pixel position, 5 mark the 2x2 cells around it dirty. Drawn cells
+@RocketGfx_Update are marked dirty for the next restore.
+F_1254c RocketGfx_DrawRocket
+@RocketGfx_DrawRocket RocketGfx_DrawRocket(a0 = screen, d0 = column, d1 = row, d2 = colour) : big rocket
+@RocketGfx_DrawRocket on the game board, or ROCKTINY on the 8-pixel level-select preview (B_2cf20 = 0).
+F_125e4 RocketGfx_DrawBulge
+@RocketGfx_DrawBulge RocketGfx_DrawBulge(d0 = column, d1 = row, d2 = frame) : RKTBULGE frame on logic screen.
+F_12636 RocketGfx_DrawCrash
+@RocketGfx_DrawCrash RocketGfx_DrawCrash(d0 = column, d1 = row, d2 = frame, max 3) : RKTCRASH frame.
+B_2daa8 gRocketBulgeGfx
+B_2daac gRocketCrashGfx
+B_2dab4 gRocketGfx
+B_2dab8 gRocketTinyGfx
+
+# ---- Hud : side panel (scores, clock, time bar, puzzle panel) ----------------
+F_1268e Hud_Init
+@Hud_Init Hud_Init() : load NUMFONT0, SCORES, SCORESTB, ROCKSMAL, STNMFONT and, unless low memory,
+@Hud_Init ARROWBOX, PUZBUT1/0, SCMODE, TIMEPANL, ROCKTIME, PUZPANEL; clear the layout.
+F_127d2 Hud_Begin
+@Hud_Begin Hud_Begin() : choose the HUD layout from gGameMode and the stage objective, place the
+@Hud_Begin HUD at (128,144) over the background buffer, reset the dirty counters and draw the
+@Hud_Begin static panels. Dirty counters: 3 = draw on the 3 buffers, 2 = on the 2 screens.
+F_12990 Hud_DeInit
+@Hud_DeInit Hud_DeInit() : free the HUD sprite banks.
+F_12b0e Hud_DrawScoresOnLogic
+@Hud_DrawScoresOnLogic Hud_DrawScoresOnLogic() : draw score panel, scores and rocket icons on the logic
+@Hud_DrawScoresOnLogic screen (results screens).
+F_12b2e Hud_DrawArrowStock
+@Hud_DrawArrowStock Hud_DrawArrowStock() : puzzle: clear a 96x32 box on screen and background and
+@Hud_DrawArrowStock draw one arrow icon per arrow still in stock, 6 per row, for the 4 directions.
+F_12c1e Hud_PrintDigits
+@Hud_PrintDigits Hud_PrintDigits(a0 = string, d0 = x, d1 = y, a1 = screen) : draw the digits of the
+@Hud_PrintDigits string with NUMFONT0 sprites, 10 pixels apart (other characters leave a gap).
+F_12c82 Hud_InvalidateScorePanel
+@Hud_InvalidateScorePanel Hud_InvalidateScorePanel() : redraw the score panel background on both screens.
+F_12c96 Hud_InvalidateClock
+@Hud_InvalidateClock Hud_InvalidateClock() : redraw the clock digits on both screens.
+F_12cae Hud_InvalidateRockets
+@Hud_InvalidateRockets Hud_InvalidateRockets(d0 = player) : redraw that player's rocket icons.
+F_12cca Hud_DrawScorePanel
+@Hud_DrawScorePanel Hud_DrawScorePanel() : if dirty, draw the panel background for the layout:
+@Hud_DrawScorePanel SCORES (battle), SCORESTB (team), half SCORESTB + blank (layout 7) or SCMODE.
+F_12dec Hud_DrawTimePanel
+@Hud_DrawTimePanel Hud_DrawTimePanel() : if dirty, draw TIMEPANL.BSB at (0,0).
+F_12e36 Hud_DrawTitleBox
+@Hud_DrawTitleBox Hud_DrawTitleBox() : puzzle: if dirty, draw ARROWBOX.BSB and the level title
+@Hud_DrawTitleBox centred in it with font 1.
+F_12eb4 Hud_DrawPuzzlePanel
+@Hud_DrawPuzzlePanel Hud_DrawPuzzlePanel() : if dirty, draw PUZPANEL.BSB at (0,0).
+F_12efe Hud_UpdateArrowStock
+@Hud_UpdateArrowStock Hud_UpdateArrowStock() : if the arrow stock is dirty, Hud_DrawArrowStock.
+F_12f12 Hud_DrawClock
+@Hud_DrawClock Hud_DrawClock() : if dirty, print the minutes ("%d" at 45,29) and seconds
+@Hud_DrawClock ("%02d" at 60,29) remaining on round timer 1.
+F_12f86 Hud_DrawScores
+@Hud_DrawScores Hud_DrawScores() : print dirty scores for the layout: each player (battle),
+@Hud_DrawScores team sums (team), 20 minus team counters (layout 4), or team 0 only (layout 7).
+F_131a0 Hud_DrawRocketIcons
+@Hud_DrawRocketIcons Hud_DrawRocketIcons() : for dirty players/teams draw B_235b0 ROCKSMAL icons,
+@Hud_DrawRocketIcons coloured for the rockets owned (player +$4e), grey (frame 4) for the others.
+F_13360 Hud_EraseTimeBar
+@Hud_EraseTimeBar Hud_EraseTimeBar() : clear (colour 0) each of the 9 time bar segments
+@Hud_EraseTimeBar (16x12 at 48, 81+12*i) that Hud_Update marked as used up.
+F_133da Hud_DrawLevelNumber
+@Hud_DrawLevelNumber Hud_DrawLevelNumber() : puzzle: if dirty, 2-digit level number (gLevelIndex+1)
+@Hud_DrawLevelNumber in STNMFONT digits at (80,31) and (92,31).
+F_13480 Hud_DrawPuzzleButtons
+@Hud_DrawPuzzleButtons Hud_DrawPuzzleButtons() : puzzle: redraw each dirty button (GO/FFWD/REDO/EXIT)
+@Hud_DrawPuzzleButtons pressed (PUZBUT1) or released (PUZBUT0) from B_223d4; also on background.
+F_1359e Hud_SetPosition
+@Hud_SetPosition Hud_SetPosition(d0 = x, d1 = y) : move the HUD origin (results screens).
+F_135ac Hud_SetLayout
+@Hud_SetLayout Hud_SetLayout(d0) : 2 battle, 3 team, 4 challenge puzzle, 5 puzzle, 6 other challenge,
+@Hud_SetLayout 7 cat soccer.
+F_135b4 Hud_GetLayout
+@Hud_GetLayout d0 = Hud_GetLayout().
+F_135bc Hud_BindGfxGroup
+@Hud_BindGfxGroup Hud_BindGfxGroup() : low memory: take ARROWBOX, PUZBUT1/0, SCMODE, TIMEPANL,
+@Hud_BindGfxGroup ROCKTIME, PUZPANEL from GfxBank group 2 (files 3-9).
+B_2dabc gHudLayout
+B_2dabe gHud
+@gHud +0 x, +2 y, +4 target screen, +8..+$e dirty counters (title box, score panel, level
+@gHud number, time panel, puzzle panel, arrow stock, clock), +$f[4] scores, +$13[4] rocket icons,
+@gHud +$17[4], +$1b[4] buttons, +$1f[9] time bar redraw, +$28[9] time bar used, +$32.. sprite banks.
+B_2dac0 gHudY
+B_2dac2 gHudScreen
+B_2dac7 gHudScorePanelDirty
+B_2dac9 gHudTimePanelDirty
+B_2daca gHudPuzPanelDirty
+B_2dacb gHudArrowStockDirty
+B_2dacc gHudClockDirty
+B_2daf0 gHudTitleBoxGfx
+@gHudTitleBoxGfx HUD sprite banks follow (4 bytes each): ARROWBOX, SCORES, SCORESTB, TIMEPANL,
+@gHudTitleBoxGfx ROCKTIME, NUMFONT0, PUZPANEL, STNMFONT, PUZBUT1, PUZBUT0, ROCKSMAL, SCMODE.
+B_2daf4 gHudScoresGfx
+B_2dafc gHudTimePanelGfx
+B_2db04 gHudDigitGfx
+B_2db08 gHudPuzPanelGfx
+D_1b67a HudRocketIconSpacing
+D_1b692 HudButtonX
+D_1b69a HudButtonY
+# B_2db20 is the shared GodLib sGraphicCanvas (+0 VRAM, +$c draw funcs, +$10 clipped funcs;
+# funcs +$c DrawBox, +$18 DrawSprite). Used by many ranges; initialised by Screen_Init.
+B_2db20 gCanvas
+
+# ---- Screen : triple buffer (logic, physic, background) ----------------------
+F_1365e Screen_Init
+@Screen_Init Screen_Init() : allocate 3 screen buffers (256-byte aligned: 2 displayed + 1
+@Screen_Init background), set 320x200 4-plane mode, remember the Falcon HHT register, build line
+@Screen_Init offset and board cell offset (9x12) tables and init gCanvas on buffer 0.
+F_1375c Screen_DeInit
+@Screen_DeInit Screen_DeInit() : free the screen memory.
+F_1376a Screen_Swap
+@Screen_Swap Screen_Swap() : show the buffer just drawn (flip index, set video base), wait VBLs
+@Screen_Swap until at least gFrameMinTicks 200 Hz ticks passed since the last swap, and handle
+@Screen_Swap keypad 4/6 (Falcon horizontal centring).
+F_13830 Screen_GetPhysic
+@Screen_GetPhysic a0 = Screen_GetPhysic() : buffer currently displayed.
+F_13844 Screen_GetLogic
+@Screen_GetLogic a0 = Screen_GetLogic() : buffer being drawn (shown at the next Screen_Swap).
+F_1385c Screen_GetBackground
+@Screen_GetBackground a0 = Screen_GetBackground() : third buffer holding the clean board picture.
+F_13864 Screen_GetLogicIndex
+@Screen_GetLogicIndex d0 = Screen_GetLogicIndex() : 0 or 1, index of the logic buffer.
+F_13870 Screen_SetMinFrameTicks
+@Screen_SetMinFrameTicks Screen_SetMinFrameTicks(d0.l) : minimum 200 Hz ticks per frame (frame limiter).
+F_13878 Screen_GetBuffer
+@Screen_GetBuffer a0 = Screen_GetBuffer(d0 = index 0-2).
+F_13888 Screen_FalconHHTDec
+@Screen_FalconHHTDec Screen_FalconHHTDec() : Falcon, non-VGA: decrease HHT ($ffff8288, min $220)
+@Screen_FalconHHTDec to shift the picture horizontally.
+F_138b4 Screen_FalconHHTInc
+@Screen_FalconHHTInc Screen_FalconHHTInc() : Falcon, non-VGA: increase HHT (max $22c).
+B_2eb38 gScreenMemory
+B_2eb3c gScreens
+@gScreens 3 buffer pointers [0],[1] displayed alternately, [2] background; +$c physic index,
+@gScreens +$10 Falcon HHT, +$12 line offsets[200], +$332 board cell offsets[9][12].
+B_2eb44 gScreenBackground
+B_2eb48 gScreenPhysicIndex
+B_2eb4c gScreenFalconHHT
+D_1b7ce gFrameMinTicks
+
+# ---- Spinner : roulette reel drawn over the board ----------------------------
+F_138e0 SpinnerGfx_Init
+@SpinnerGfx_Init SpinnerGfx_Init() : unless low memory, load SPINNER.GFX (8 event panels) and
+@SpinnerGfx_Init SPINEDGE.GFX (edge masks).
+F_13918 SpinnerGfx_Begin
+@SpinnerGfx_Begin SpinnerGfx_Begin() : empty hook.
+F_1391a SpinnerGfx_DeInit
+@SpinnerGfx_DeInit SpinnerGfx_DeInit() : free SPINNER.GFX and SPINEDGE.GFX.
+F_1393e SpinnerGfx_RunReel
+@SpinnerGfx_RunReel SpinnerGfx_RunReel() : spinner animation: 1-2 full turns of the reel (4 steps per
+@SpinnerGfx_RunReel panel) then stop on gSpinnerEvent, play that event's jingle, hold 40 frames,
+@SpinnerGfx_RunReel then invalidate the whole board (Dirty_Reset).
+F_13a52 SpinnerGfx_DrawReel
+@SpinnerGfx_DrawReel SpinnerGfx_DrawReel(d0 = position, 4 per panel) : restore the edge cells (rows 3-5,
+@SpinnerGfx_DrawReel columns 0 and 11) then draw the visible panels (32 lines from y=56).
+F_13ad6 SpinnerGfx_DrawPanelMiddle
+@SpinnerGfx_DrawPanelMiddle SpinnerGfx_DrawPanelMiddle(d0 = panel, wraps 0-7) : 16 lines of the panel at y=64.
+F_13b72 SpinnerGfx_DrawPanelTop
+@SpinnerGfx_DrawPanelTop SpinnerGfx_DrawPanelTop(d0 = panel) : 8 lines at y=56, ends masked with SPINEDGE.
+F_13d0a SpinnerGfx_DrawPanelBottom
+@SpinnerGfx_DrawPanelBottom SpinnerGfx_DrawPanelBottom(d0 = panel) : 8 lines at y=80, ends masked.
+F_13eb4 SpinnerGfx_DrawPanelUpperHalf
+@SpinnerGfx_DrawPanelUpperHalf SpinnerGfx_DrawPanelUpperHalf(d0 = panel) : between steps, 16 lines at y=56,
+@SpinnerGfx_DrawPanelUpperHalf the first 8 with masked ends.
+F_1406e SpinnerGfx_DrawPanelLowerHalf
+@SpinnerGfx_DrawPanelLowerHalf SpinnerGfx_DrawPanelLowerHalf(d0 = panel) : 16 lines at y=72, last 8 masked.
+F_1423a SpinnerGfx_BindGfxGroup
+@SpinnerGfx_BindGfxGroup SpinnerGfx_BindGfxGroup() : low memory: take SPINNER/SPINEDGE from group 2 (files 1,2).
+B_2f0b2 gSpinnerGfx
+B_2f0b6 gSpinnerEdgeGfx
+
+# ---- Starfield : 3D stars behind the results screens -------------------------
+F_14266 Starfield_Init
+@Starfield_Init Starfield_Init() : build the perspective table $7fff/(255-z) and pick the star
+@Starfield_Init count: 256 on a Falcon, 200 otherwise.
+F_142ce Starfield_Reset
+@Starfield_Reset Starfield_Reset() : give every star a random position and a random depth 0-191.
+F_1430c Starfield_DeInit
+@Starfield_DeInit Starfield_DeInit() : empty hook.
+F_1430e Starfield_Update
+@Starfield_Update Starfield_Update(d0 = region 0-3) : on the logic screen erase the stars and draw
+@Starfield_Update them again (moved), centred and clipped by StarfieldRegions[d0] (F_165a4, Starfield_MoveAndPlot).
+F_14366 Starfield_RespawnStar
+@Starfield_RespawnStar Starfield_RespawnStar(a0 = star) : random x, y, depth 0-7 and speed 1-3.
+B_2f0ba gStarPerspective
+B_2f2ba gStars
+D_1b7ee gStarCount
+D_1b7f0 StarfieldRegions
+
+# ---- FontMid : FONTMID.IMG (loaded but unused) -------------------------------
+F_143ae FontMid_Init
+@FontMid_Init FontMid_Init() : load FONTMID.IMG into gFontMid (nothing else reads it).
+F_143c6 FontMid_Begin
+@FontMid_Begin FontMid_Begin() : empty hook.
+F_143c8 FontMid_DeInit
+@FontMid_DeInit FontMid_DeInit() : free FONTMID.IMG.
+B_2faba gFontMid
+
+# ---- Dirty : dirty-cell masks, board restore from the background -------------
+# Per displayed buffer, 13 row words; word r+1 bit c+1 = board cell (c,r) must be
+# copied back from the background buffer before sprites are drawn again.
+F_143d6 Dirty_Init
+@Dirty_Init Dirty_Init() : point gDirtyMaskPtr / gDirtyCurCursorRect at the first buffer's data.
+F_143ea Dirty_Reset
+@Dirty_Reset Dirty_Reset() : mark every cell dirty on both buffers and forget the cursor
+@Dirty_Reset rectangles (round start, after the spinner).
+F_14426 Dirty_DeInit
+@Dirty_DeInit Dirty_DeInit() : clear both masks.
+F_14458 Dirty_RestoreBoard
+@Dirty_RestoreBoard Dirty_RestoreBoard() : for the logic buffer, copy every dirty board cell from the
+@Dirty_RestoreBoard background (F_16604), then the 32x16 block under the saved puzzle cursor.
+F_1454c Dirty_RestoreCell
+@Dirty_RestoreCell Dirty_RestoreCell(d0 = row, d1 = column) : copy one 16x16 board cell from the
+@Dirty_RestoreCell background to the logic screen.
+F_145b8 Dirty_RestoreWrapColumn
+@Dirty_RestoreWrapColumn Dirty_RestoreWrapColumn() : restore the dirty cells of the column left of
+@Dirty_RestoreWrapColumn the board (x=112, sprites wrapping around) and select this buffer's mask.
+F_14600 Dirty_MarkCell
+@Dirty_MarkCell Dirty_MarkCell(d0 = bit, d1 = word) : set a bit in the current mask (raw
+@Dirty_MarkCell coordinates: bit = column+1, word = row+1).
+F_1461a Dirty_SetCursorRect
+@Dirty_SetCursorRect Dirty_SetCursorRect(a0 = cursor) : remember the cursor position so that
+@Dirty_SetCursorRect Dirty_RestoreBoard restores the block under it (puzzle cursor).
+F_1463c Dirty_MarkSprite
+@Dirty_MarkSprite Dirty_MarkSprite(a0 = object, +0 x, +4 y in 20.12 fixed point) : mark the 1 to 4
+@Dirty_MarkSprite cells covered by a 16x16 sprite at that position.
+F_146d8 Dirty_MarkSpriteCentred
+@Dirty_MarkSpriteCentred Dirty_MarkSpriteCentred(a0 = object) : same, the position being the sprite
+@Dirty_MarkSpriteCentred centre (8 pixels subtracted first).
+F_14780 Dirty_InvalidateAll
+@Dirty_InvalidateAll Dirty_InvalidateAll() : mark every cell dirty on both buffers.
+B_2fabe gDirtyMasks
+B_2faf2 gDirtyCursorRects
+B_2fb0e gDirtyCurCursorRect

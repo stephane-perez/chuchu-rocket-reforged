@@ -1,0 +1,372 @@
+# ===== Map B: game modules $049a6-$0a0ff (AI, arrows, demo, puzzle panel,
+# ===== mice, board cells, timers, controls/options menus, AI path maps,
+# ===== front end, round lifecycle, save file, spawners, input cursor)
+#
+# Module lifecycle hooks. Every game module exposes up to 6 entry points,
+# called in fixed order by these dispatchers:
+#   Game_InitModules     (once at program start)          -> *_InitStub / *_Init
+#   Game_DeInitModules   (once at program exit)           -> *_DeInit
+#   Round_InitModules    (start of Round_Run = a match)   -> *_RoundBegin
+#   Round_DeInitModules  (end of Round_Run)               -> *_RoundEnd
+#   Round_SetupLevel     (start of every level/round)     -> *_SetupForLevel
+#   Round_CleanupLevel   (end of every level/round)       -> *_LevelReset
+# Empty ones (just rts) get the suffix "Stub".
+
+# ---------- Round lifecycle dispatchers ----------
+F_08664 Game_DeInitModules
+@Game_DeInitModules Game_DeInitModules() : program-exit counterpart of Game_InitModules;
+@Game_DeInitModules calls the *_DeInit hook of every game module (mostly empty stubs).
+F_0873c Round_DeInitModules
+@Round_DeInitModules Round_DeInitModules() : end-of-match counterpart of Round_InitModules,
+@Round_DeInitModules called once when Round_Run finishes; calls every module's *_RoundEnd hook.
+F_08832 Round_CleanupLevel
+@Round_CleanupLevel Round_CleanupLevel() : end-of-level counterpart of Round_SetupLevel;
+@Round_CleanupLevel calls every module's *_LevelReset hook (Round_Run calls it before
+@Round_CleanupLevel setting up the next level, and when the match ends).
+
+# ---------- AI ($049a4-$04f40) ----------
+F_049a6 Ai_DeInitStub
+@Ai_DeInitStub Ai_DeInitStub() : empty AI hook, called by Game_DeInitModules.
+F_049a8 Ai_RoundBeginStub
+@Ai_RoundBeginStub Ai_RoundBeginStub() : empty AI hook, called by Round_InitModules.
+F_049aa Ai_RoundEndStub
+@Ai_RoundEndStub Ai_RoundEndStub() : empty AI hook, called by Round_DeInitModules.
+F_049ac Ai_ResetForLevel
+@Ai_ResetForLevel Ai_ResetForLevel() : level-start hook. Resets the 4 gAiPlayers records
+@Ai_ResetForLevel (36 bytes each): +$12 state = 0 (think), +$14 = 0, +$1c reaction countdown = 0,
+@Ai_ResetForLevel +$10 = 1, +$16 and +$18 = own player index (target rocket owner).
+F_049de Ai_LevelResetStub
+@Ai_LevelResetStub Ai_LevelResetStub() : empty AI hook, called by Round_CleanupLevel.
+
+# ---------- Arrows ($04f40-$0537a) ----------
+F_04f94 Arrows_DeInitStub
+@Arrows_DeInitStub Arrows_DeInitStub() : empty arrows hook, called by Game_DeInitModules.
+F_04f96 Arrows_RoundBegin
+@Arrows_RoundBegin Arrows_RoundBegin() : match-start hook; forgets the saved puzzle arrows
+@Arrows_RoundBegin (PuzzleArrows_Clear).
+F_04f9e Arrows_RoundEndStub
+@Arrows_RoundEndStub Arrows_RoundEndStub() : empty arrows hook, called by Round_DeInitModules.
+F_04fa0 Arrows_ResetForLevel
+@Arrows_ResetForLevel Arrows_ResetForLevel() : level-start hook. Sets every arrow cell's health
+@Arrows_ResetForLevel to 0, clears the 9 row masks, the per-player arrow counts (gArrowCounts)
+@Arrows_ResetForLevel and the 4 undo counters, then Arrows_RemoveAll.
+F_05006 Arrows_LevelResetStub
+@Arrows_LevelResetStub Arrows_LevelResetStub() : empty arrows hook, called by Round_CleanupLevel.
+
+# ---------- Demo ($0537a-$05464) ----------
+F_0537a Demo_InitStub
+@Demo_InitStub Demo_InitStub() : empty hook called once by App_FrontEndStateMachine at
+@Demo_InitStub start-up (after the save file is loaded); sits at the head of the demo module.
+F_0537c Demo_DeInitStub
+@Demo_DeInitStub Demo_DeInitStub() : empty hook called once by App_FrontEndStateMachine
+@Demo_DeInitStub at exit, before the save file is written.
+F_0543c Demo_AfterRunStub
+@Demo_AfterRunStub Demo_AfterRunStub() : empty hook called by Demo_Run right after the demo
+@Demo_AfterRunStub round (Round_Run) returns, before Demo_RestoreOptions.
+B_2a86a gDemoActive
+@gDemoActive gDemoActive.w : 1 while the attract-mode demo is playing (set by Demo_Run and
+@gDemoActive Round_Run); Round_Run then picks a random level (0-23) for each round.
+
+# ---------- Puzzle panel ($05464-$05490; its init label is the older name PuzzlePanel_InitStub) ----------
+F_05466 PuzzlePanel_DeInitStub
+@PuzzlePanel_DeInitStub PuzzlePanel_DeInitStub() : empty hook of the puzzle-panel module
+@PuzzlePanel_DeInitStub (module whose Game_InitModules entry is PuzzlePanel_InitStub).
+F_05468 PuzzlePanel_RoundBeginStub
+@PuzzlePanel_RoundBeginStub PuzzlePanel_RoundBeginStub() : empty puzzle-panel hook (Round_InitModules).
+F_0546a PuzzlePanel_RoundEndStub
+@PuzzlePanel_RoundEndStub PuzzlePanel_RoundEndStub() : empty puzzle-panel hook (Round_DeInitModules).
+F_0546c PuzzlePanel_ResetForLevel
+@PuzzlePanel_ResetForLevel PuzzlePanel_ResetForLevel() : level-start hook; clears the 4 puzzle
+@PuzzlePanel_ResetForLevel button flags gPuzzleButtons.
+F_05488 PuzzlePanel_LevelResetStub
+@PuzzlePanel_LevelResetStub PuzzlePanel_LevelResetStub() : empty puzzle-panel hook (Round_CleanupLevel).
+B_223d4 gPuzzleButtons
+@gPuzzleButtons gPuzzleButtons[4].w : puzzle control panel buttons, one flag each, set by
+@gPuzzleButtons Players_Update when the cursor clicks them: [0] start (run the mice),
+@gPuzzleButtons [1] fast forward, [2] reset (retry), [3] fourth button (exit). Drawn by F_13480.
+
+# ---------- Mice ($05490-$058e0) ----------
+F_054b6 Mice_DeInitStub
+@Mice_DeInitStub Mice_DeInitStub() : empty mice hook, called by Game_DeInitModules.
+F_054b8 Mice_RoundBegin
+@Mice_RoundBegin Mice_RoundBegin() : match-start hook; clears the 4 longs of gMiceActiveMask
+@Mice_RoundBegin (one bit per mouse slot).
+F_054d4 Mice_RoundEndStub
+@Mice_RoundEndStub Mice_RoundEndStub() : empty mice hook, called by Round_DeInitModules.
+F_05582 Mice_LevelResetStub
+@Mice_LevelResetStub Mice_LevelResetStub() : empty mice hook, called by Round_CleanupLevel.
+
+# ---------- Board: turn table + cell helpers ($058e0-$05a4c) ----------
+F_059f6 Board_DeInitStub
+@Board_DeInitStub Board_DeInitStub() : empty hook of the board module (init = TurnTable_Build).
+F_059f8 Board_RoundBeginStub
+@Board_RoundBeginStub Board_RoundBeginStub() : empty board hook, called by Round_InitModules.
+F_059fa Board_RoundEndStub
+@Board_RoundEndStub Board_RoundEndStub() : empty board hook, called by Round_DeInitModules.
+F_059fc Cell_SetArrow
+@Cell_SetArrow Cell_SetArrow(a0 = board cell, d0 = direction 0-3, d1 = owner player 0-3) :
+@Cell_SetArrow sets the cell type to $40 (arrow) in byte 0 bits 4-6, the direction in byte 1
+@Cell_SetArrow bits 0-1 and the owner in byte 1 bits 2-3. Used by Arrow_Create.
+F_05a2c Cell_SetRocket
+@Cell_SetRocket Cell_SetRocket(a0 = board cell, d0 = owner player 0-3) : sets the cell type to
+@Cell_SetRocket $20 (rocket) and the owner in byte 1 bits 2-3. Used when rockets move (Everybody Move).
+F_05a48 Cell_ClearRocket
+@Cell_ClearRocket Cell_ClearRocket(a0 = board cell) : clears the cell type bits (same code
+@Cell_ClearRocket as Cell_ClearType); used by Spinner_EverybodyMove to lift a rocket off its old cell.
+
+# ---------- Timers ($05a4c-$05c2a) ----------
+F_05a72 Timers_DeInitStub
+@Timers_DeInitStub Timers_DeInitStub() : empty timers hook, called by Game_DeInitModules.
+F_05a74 Timers_RoundBeginStub
+@Timers_RoundBeginStub Timers_RoundBeginStub() : empty timers hook, called by Round_InitModules.
+F_05a76 Timers_RoundEndStub
+@Timers_RoundEndStub Timers_RoundEndStub() : empty timers hook, called by Round_DeInitModules.
+F_05b08 Timers_LevelResetStub
+@Timers_LevelResetStub Timers_LevelResetStub() : empty timers hook, called by Round_CleanupLevel.
+B_2334c gMenuIdleElapsed
+@gMenuIdleElapsed gMenuIdleElapsed : "elapsed" field {h,m,s,1/200} of timer 2, the front-end idle
+@gMenuIdleElapsed timer (restarted on every menu key). FrontEnd_Run starts the demo when it
+@gMenuIdleElapsed passes 10 seconds.
+
+# ---------- Controls menu: choose each player's input device ($05c2a-$0664c) ----------
+F_05c2a ControlsMenu_Init
+@ControlsMenu_Init ControlsMenu_Init() : builds the 4 pages of the controller menu (one per game
+@ControlsMenu_Init mode). Page record (12 bytes, gControlsPages[4]): +$00.l item count,
+@ControlsMenu_Init +$04.l cursor, +$08.l -> items. Item record (20 bytes): +$00.l value (device),
+@ControlsMenu_Init +$04.l value count, +$08.l player 0-3 (4 = START GAME), +$0c label, +$10 -> ControllerNames.
+F_05e1c ControlsMenu_Run
+@ControlsMenu_Run ControlsMenu_Run() : d0.w = 1 START GAME chosen, 0 cancelled. Shows the page for
+@ControlsMenu_Run the current game mode (PLAYER 1-4 / START GAME), up/down move, left/right/fire
+@ControlsMenu_Run change the device, resolves conflicts, writes the choices to gOptions and
+@ControlsMenu_Run switches the IKBD to mouse or joystick mode (Controls_ApplyIkbdMode).
+F_06058 ControlsMenu_SaveToOptions
+@ControlsMenu_SaveToOptions ControlsMenu_SaveToOptions(a0 = page) : copies each PLAYER item's device into
+@ControlsMenu_SaveToOptions gOptions (+$08/+$0e/+$14/+$1a = controller of players 1-4); wraps bad values to 0.
+F_0611e ControlsMenu_LoadFromOptions
+@ControlsMenu_LoadFromOptions ControlsMenu_LoadFromOptions(a0 = page) : fills each PLAYER item's value
+@ControlsMenu_LoadFromOptions from the player controllers stored in gOptions.
+F_061c6 ControlsMenu_GetCursor
+@ControlsMenu_GetCursor ControlsMenu_GetCursor() : d0.w = cursor (selected item) of the current page.
+F_061d2 ControlsMenu_SetCursor
+@ControlsMenu_SetCursor ControlsMenu_SetCursor(d0.w = item) : sets the cursor of the current page.
+F_061e2 ControlsMenu_GetItem
+@ControlsMenu_GetItem ControlsMenu_GetItem(d0.w = index) : a0 = item record of the current page.
+F_061fc ControlsMenu_GetItemCount
+@ControlsMenu_GetItemCount ControlsMenu_GetItemCount() : d0.w = number of items on the current page.
+F_06208 ControlsMenu_FixConflicts
+@ControlsMenu_FixConflicts ControlsMenu_FixConflicts() : after the selected player changed device,
+@ControlsMenu_FixConflicts every other human player using the same device (or a clashing one: keyboard,
+@ControlsMenu_FixConflicts mouse vs joystick 0, team-tap pads) is moved to the first free device.
+@ControlsMenu_FixConflicts Device 14 (CPU) never clashes.
+F_06622 Controls_IsTeamTap0
+@Controls_IsTeamTap0 Controls_IsTeamTap0(d0.l = device) : d0.b = 1 if device 6-9 (TEAM TAP 0 pad A-D).
+F_06638 Controls_IsTeamTap1
+@Controls_IsTeamTap1 Controls_IsTeamTap1(d0.l = device) : d0.b = 1 if device 10-13 (TEAM TAP 1 pad A-D).
+B_2338c gControlsPages
+@gControlsPages gControlsPages[4] (12 bytes each) : controller menu pages, see ControlsMenu_Init.
+B_233bc gControlsPage
+@gControlsPage gControlsPage.l : pointer to the page in use (= gControlsPages[game mode]).
+B_233c0 gControlsItems
+@gControlsItems gControlsItems : item records (20 bytes) of controller menu pages 0 and 1.
+D_19bf4 ControllerNames
+@ControllerNames ControllerNames[15] : device names: 0 KEYBOARD, 1 MOUSE, 2-3 JOYSTICK 0/1,
+@ControllerNames 4-5 JAGUAR PAD A/B, 6-9 TEAM TAP 0 PAD A-D, 10-13 TEAM TAP 1 PAD A-D, 14 CPU.
+
+# ---------- Options: defaults and OPTIONS menu ($069da-$06ec2) ----------
+F_069da Options_SetDefaults
+@Options_SetDefaults Options_SetDefaults() : first call of App_FrontEndStateMachine. Copies the 45
+@Options_SetDefaults DefaultOptions entries into gOptions (option n = long at gOptions + 6*n + 2).
+F_06a14 Options_DeInitStub
+@Options_DeInitStub Options_DeInitStub() : empty hook called by App_FrontEndStateMachine at exit.
+F_06a16 OptionsMenu_Init
+@OptionsMenu_Init OptionsMenu_Init() : builds the 12 OPTIONS menu items (16 bytes each: +$00.l value,
+@OptionsMenu_Init +$04.l value count, +$08 label, +$0c -> value names): WINS, TIME, SPEED, GOLD/PURPLE
+@OptionsMenu_Init FREQUENCY, SPRITES, SOUND FX, MUSIC, SFX TEST, BGM TEST, SPEAKER, MAIN MENU;
+@OptionsMenu_Init SPEAKER only has 2 choices on machine type 6. Then loads gOptions.
+F_06b90 OptionsMenu_DeInitStub
+@OptionsMenu_DeInitStub OptionsMenu_DeInitStub() : empty, called by FrontEnd_DeInit.
+F_06b92 OptionsMenu_Run
+@OptionsMenu_Run OptionsMenu_Run() : OPTIONS screen loop. Up/down select (12 items, wraps),
+@OptionsMenu_Run left/right/fire change the value; fire on SFX TEST / BGM TEST plays it; fire on
+@OptionsMenu_Run MAIN MENU or escape leaves. Changes are applied to gOptions at once.
+F_06d1a OptionsMenu_SaveToOptions
+@OptionsMenu_SaveToOptions OptionsMenu_SaveToOptions() : writes the menu values into gOptions:
+@OptionsMenu_SaveToOptions +$c2 wins (1/3/5), +$c8 round time (60/180/300 s), +$d4 speed, +$b0 gold freq,
+@OptionsMenu_SaveToOptions +$b6 purple freq, +$bc sprites, +$da sfx, +$e0 music, +$e6 speaker;
+@OptionsMenu_SaveToOptions then switches the speaker and starts/stops the music to match.
+F_06dce OptionsMenu_LoadFromOptions
+@OptionsMenu_LoadFromOptions OptionsMenu_LoadFromOptions() : reverse of OptionsMenu_SaveToOptions
+@OptionsMenu_LoadFromOptions (wins/time are looked up in WinsTimeValues); out-of-range values become 0.
+F_06e7c OptionsMenu_UpdateSprites
+@OptionsMenu_UpdateSprites OptionsMenu_UpdateSprites() : number of SPRITES choices = 1, +1 when all 25
+@OptionsMenu_UpdateSprites levels of level file 3 are completed, +1 for level file 4 (stage challenge)
+@OptionsMenu_UpdateSprites (secret sprites unlock); clamps the current choice.
+B_235fa gOptionsMenuItems
+@gOptionsMenuItems gOptionsMenuItems[12] (16 bytes each) : OPTIONS menu items, see OptionsMenu_Init.
+B_236ba gOptionsMenuCursor
+@gOptionsMenuCursor gOptionsMenuCursor.w : selected OPTIONS item 0-11. The 640 bytes after it
+@gOptionsMenuCursor (B_236ba+2) are a path map cleared by PathMaps_BuildForLevel.
+D_19d8a DefaultOptions
+@DefaultOptions DefaultOptions[45] {w option id, l value} : mode 1, P1 = mouse, P2-P4 = CPU, keys,
+@DefaultOptions gold/purple frequency 1, wins 5, time 180 s, speed 1, sfx on, music on.
+D_19ee8 WinsTimeValues
+@WinsTimeValues WinsTimeValues : words {1,3,5} = WINS choices, then {60,180,300} = TIME choices (s).
+
+# ---------- AI path maps ($06ec2-$07bb8) ----------
+# Path map (640 bytes): +$000 4 x 16 words: for each direction, one bit per column
+# of each row (tile visited while moving in that direction); +$080 4 x 128 bytes:
+# for each direction, 9 x 12 byte distances (steps). gRocketMaps: 4 players x 3
+# maps ($780 per player); map k = paths into the rocket that need k arrows.
+F_06ec4 PathMaps_DeInitStub
+@PathMaps_DeInitStub PathMaps_DeInitStub() : empty path-maps hook (Game_DeInitModules).
+F_06ec6 PathMaps_RoundBeginStub
+@PathMaps_RoundBeginStub PathMaps_RoundBeginStub() : empty path-maps hook (Round_InitModules).
+F_06ec8 PathMaps_RoundEndStub
+@PathMaps_RoundEndStub PathMaps_RoundEndStub() : empty path-maps hook (Round_DeInitModules).
+F_06eca PathMaps_BuildForLevel
+@PathMaps_BuildForLevel PathMaps_BuildForLevel() : level-start hook (battle modes and cat soccer only).
+@PathMaps_BuildForLevel Clears all maps, traces the flow map from every spawner (PathMaps_TraceForward)
+@PathMaps_BuildForLevel and builds each player's rocket maps (PathMaps_BuildRocketMaps); sets
+@PathMaps_BuildForLevel gPathMapsState = 0 and a table of 5 distance-map pointers.
+F_06fb2 PathMaps_LevelResetStub
+@PathMaps_LevelResetStub PathMaps_LevelResetStub() : empty path-maps hook (Round_CleanupLevel).
+F_07126 PathMaps_TraceForward
+@PathMaps_TraceForward PathMaps_TraceForward(a0 = map, d0 = row, d1 = column, d2 = direction,
+@PathMaps_TraceForward stack byte = start distance) : follows the way a creature would walk (arrows,
+@PathMaps_TraceForward gTurnTable, board wrap), marking bits and shorter distances, up to 144 steps
+@PathMaps_TraceForward or until a rocket / an already shorter tile. Builds the flow map from spawners.
+F_0727a PathMaps_ClearPlayer
+@PathMaps_ClearPlayer PathMaps_ClearPlayer(a0 = player's 3 rocket maps) : clears their bits and distances.
+F_072de PathMaps_TraceRocketRight
+@PathMaps_TraceRocketRight PathMaps_TraceRocketRight(a0 = player maps, d0 = rocket row, d1 = column) :
+@PathMaps_TraceRocketRight if the rocket has no right wall, traces back the tiles that reach it from the
+@PathMaps_TraceRocketRight right (asm tracer F_0c9b8). Also runs the C tracer PathMaps_TraceLeftward into
+@PathMaps_TraceRocketRight gRocketMapsScratch (result unused, looks like a leftover).
+F_0734e PathMaps_TraceRocketLeft
+@PathMaps_TraceRocketLeft PathMaps_TraceRocketLeft(a0 = player maps, d0 = row, d1 = column) : same for an
+@PathMaps_TraceRocketLeft open left side (F_0c9cc) - but it writes into gRocketMapsScratch instead of a0,
+@PathMaps_TraceRocketLeft so the step-by-step rebuild misses this side (apparent original bug).
+F_073a8 PathMaps_TraceRocketTop
+@PathMaps_TraceRocketTop PathMaps_TraceRocketTop(a0 = player maps, d0 = row, d1 = column) : same for an
+@PathMaps_TraceRocketTop open top side (asm tracer F_0c9e0).
+F_073e0 PathMaps_TraceRocketBottom
+@PathMaps_TraceRocketBottom PathMaps_TraceRocketBottom(a0 = player maps, d0 = row, d1 = column) : same for
+@PathMaps_TraceRocketBottom an open bottom side (asm tracer F_0c9f4).
+F_07418 PathMaps_BuildRocketMaps
+@PathMaps_BuildRocketMaps PathMaps_BuildRocketMaps(a0 = player maps, d0 = rocket row, d1 = column) :
+@PathMaps_BuildRocketMaps clears the player's maps then traces back from each open side of the rocket
+@PathMaps_BuildRocketMaps (asm tracers F_0c9b8/F_0c9cc/F_0c9e0/F_0c9f4), all in one go.
+F_074c2 PathMaps_TraceLeftward
+@PathMaps_TraceLeftward PathMaps_TraceLeftward(a0 = maps, d0 = row, d1 = col, d2 = distance, stack w =
+@PathMaps_TraceLeftward arrows used 0-2) : C reverse tracer; walks right from (row,col) to mark tiles
+@PathMaps_TraceLeftward where a creature moving LEFT reaches the target. Stops on hole, rocket, spawner,
+@PathMaps_TraceLeftward other arrow, 144; at walls recurses up/down (natural turn, or +1 arrow).
+F_07654 PathMaps_TraceRightward
+@PathMaps_TraceRightward PathMaps_TraceRightward(same args) : same as PathMaps_TraceLeftward for creatures
+@PathMaps_TraceRightward moving RIGHT (direction 1).
+F_077e2 PathMaps_TraceDownward
+@PathMaps_TraceDownward PathMaps_TraceDownward(same args) : same for creatures moving DOWN (direction 2).
+F_0797c PathMaps_TraceUpward
+@PathMaps_TraceUpward PathMaps_TraceUpward(same args) : same for creatures moving UP (direction 3).
+F_07b06 PathMaps_ClearTileGrid
+@PathMaps_ClearTileGrid PathMaps_ClearTileGrid(a0 = grid) : clears a 9 x 12 grid of 2-byte entries
+@PathMaps_ClearTileGrid (used on the grid that follows gRocketMapsScratch).
+F_07b48 PathMap_Clear
+@PathMap_Clear PathMap_Clear(a0 = map) : clears one 640-byte path map (4 direction bit masks and
+@PathMap_Clear 4 distance tables, via F_0c99a / F_0c9a8).
+F_07ba8 PathMaps_IsRebuilding
+@PathMaps_IsRebuilding PathMaps_IsRebuilding() : d0.w = gPathMapsState (0 idle, 1 rebuild in progress).
+@PathMaps_IsRebuilding Ai_Update waits while the maps of its target player are being rebuilt.
+F_07bb0 PathMaps_GetRebuildPlayer
+@PathMaps_GetRebuildPlayer PathMaps_GetRebuildPlayer() : d0.w = player whose rocket maps
+@PathMaps_GetRebuildPlayer Ai_UpdatePathMaps is rebuilding.
+B_22114 gPathMapsDirty
+@gPathMapsDirty gPathMapsDirty.b : set by Arrow_Create; Ai_UpdatePathMaps then starts a rebuild.
+B_2393c gFlowMap
+@gFlowMap gFlowMap (640 bytes) : path map of the tiles walked by creatures leaving the spawners.
+B_23bbc gRocketMaps
+@gRocketMaps gRocketMaps[4][3] (640 bytes each) : per player, tiles that lead into his rocket
+@gRocketMaps with 0, 1 or 2 arrows (Ai_GetRocketMap).
+B_259bc gRocketMapsScratch
+@gRocketMapsScratch gRocketMapsScratch[4][3] : second set of rocket maps written by
+@gRocketMapsScratch PathMaps_TraceRocketRight/Left and never read by the AI.
+B_27894 gPathMapsState
+@gPathMapsState gPathMapsState.w : 0 idle, 1 rebuilding (next word = step 0-6 of the rebuild).
+B_27898 gPathMapsPlayer
+@gPathMapsPlayer gPathMapsPlayer.w : player 0-3 whose rocket maps are being rebuilt.
+
+# ---------- Front end menus ($07bb8-$08600) ----------
+F_07bb8 FrontEnd_Init
+@FrontEnd_Init FrontEnd_Init() : one-time front-end setup: 6 menu descriptors in gFrontEndMenus
+@FrontEnd_Init (8 bytes: +0.w item count, +2.w cursor, +4.l -> item positions), menu keys
+@FrontEnd_Init (cursor keys, space, undo, F10), then OptionsMenu_Init and ControlsMenu_Init.
+F_07d4c FrontEnd_DeInit
+@FrontEnd_DeInit FrontEnd_DeInit() : exit counterpart of FrontEnd_Init (calls OptionsMenu_DeInitStub).
+F_080f6 FrontEnd_ApplyGameMode
+@FrontEnd_ApplyGameMode FrontEnd_ApplyGameMode() : from the chosen mode (gOptions+$4): remembers the level
+@FrontEnd_ApplyGameMode per mode, picks the level file (battle 5, stage challenge 4, puzzle = puzzle set)
+@FrontEnd_ApplyGameMode and the player count (4, 4, 2 or 1), then selects level gOptions+$ee.
+F_0818e FrontEnd_ShowLevelSelect
+@FrontEnd_ShowLevelSelect FrontEnd_ShowLevelSelect() : applies the mode and draws the level-select
+@FrontEnd_ShowLevelSelect screen (level preview, level number, puzzle set) with a fade-in.
+F_081f4 FrontEnd_LevelSelect
+@FrontEnd_LevelSelect FrontEnd_LevelSelect() : level-select loop. Left/right: level 0-24 (wraps);
+@FrontEnd_LevelSelect puzzle mode up/down: puzzle set 0-3 (next set only if the current one is fully
+@FrontEnd_LevelSelect completed); fire: ControlsMenu_Run, then app state 4 (play); escape: game menu.
+F_08486 FrontEnd_ShowHelpPage
+@FrontEnd_ShowHelpPage FrontEnd_ShowHelpPage(d0 = page) : draws a help page (0 BASICS, 1 4PBATTLE,
+@FrontEnd_ShowHelpPage 2 STAGECHG, 3 PUZZLE, 4 TEAMBATL, 5 CONTROL, 6 CONTROL2 .HLP) and waits for fire.
+F_084e0 FrontEnd_HelpMenuSelect
+@FrontEnd_HelpMenuSelect FrontEnd_HelpMenuSelect() : shows the help page chosen in the help menu (the
+@FrontEnd_HelpMenuSelect basics page is followed by the 2 control pages), then redraws the help menu.
+F_085b8 MenuInput_Reset
+@MenuInput_Reset MenuInput_Reset() : resets the 3 menu input devices of gMenuInput (InputCursor_Reset).
+F_085e0 FrontEnd_SetScreen
+@FrontEnd_SetScreen FrontEnd_SetScreen(d0 = screen) : switches the front-end page and redraws it.
+@FrontEnd_SetScreen Screens: 0 main, 1 help, 2 game mode, 3 options, 4 quit, 5 level select.
+B_278b0 gFrontEndScreen
+@gFrontEndScreen gFrontEndScreen.w : current front-end screen (see FrontEnd_SetScreen).
+B_2792c gFrontEndMenus
+@gFrontEndMenus gFrontEndMenus[6] (8 bytes) : per screen item count, cursor, -> item positions.
+B_27936 gHelpMenuCursor
+@gHelpMenuCursor gHelpMenuCursor.w : cursor of the help menu (= gFrontEndMenus[1].cursor), 5 = back.
+
+# ---------- Save file chuchu.sav ($0981a-$09950) ----------
+F_0981a SaveFile_Load
+@SaveFile_Load SaveFile_Load() : d0.b = 1 if ok. Reads "chuchu.sav" (282 bytes) into gSaveBuffer; checks
+@SaveFile_Load magic $0c405a73 and version 1, then restores gStageBestTimes (25 w at +$e8),
+@SaveFile_Load gLevelsCompleted (10 l at +$0c) and the 45 options (+$34); stops music if it is off.
+F_098c0 SaveFile_Save
+@SaveFile_Save SaveFile_Save() : fills gSaveBuffer the same way and writes "chuchu.sav" at exit.
+B_27a84 gSaveBuffer
+@gSaveBuffer gSaveBuffer (282 bytes) : image of chuchu.sav, see SaveFile_Load.
+B_2a86c gLevelsCompleted
+@gLevelsCompleted gLevelsCompleted[10].l : one bit per completed level (25 bits) for each level file;
+@gLevelsCompleted a full set unlocks the next puzzle set or secret sprites.
+B_2a894 gStageBestTimes
+@gStageBestTimes gStageBestTimes[25].w : best time in seconds for each stage challenge level.
+D_19fd2 SaveNameRead
+D_19fdd SaveNameWrite
+
+# ---------- Spawners ($09950-$09c66) ----------
+F_09954 Spawners_DeInit
+@Spawners_DeInit Spawners_DeInit() : exit hook; sets gSpawnerCount to 0.
+F_0995c Spawners_RoundBeginStub
+@Spawners_RoundBeginStub Spawners_RoundBeginStub() : empty spawners hook (Round_InitModules).
+F_0995e Spawners_RoundEndStub
+@Spawners_RoundEndStub Spawners_RoundEndStub() : empty spawners hook (Round_DeInitModules).
+F_09a7e Spawners_LevelResetStub
+@Spawners_LevelResetStub Spawners_LevelResetStub() : empty spawners hook (Round_CleanupLevel).
+B_27b9e gSpawners
+@gSpawners gSpawners[16] (26 bytes) : +0 column, +2 row, +4 direction, +6 active, +$12/+$16 speed ($1200).
+@gSpawners Followed by +$1a0 count, +$1a2 = 100, +$1a4 gold countdown, +$1a6 purple countdown.
+B_27d3e gSpawnerCount
+@gSpawnerCount gSpawnerCount.w : number of spawner tiles on the level (= gSpawners+$1a0).
+D_19ff8 BonusMouseFreqs
+@BonusMouseFreqs BonusMouseFreqs : per frequency setting 0-2, mice before the next bonus mouse =
+@BonusMouseFreqs base + Random(extra): gold base {32,16,8} extra {32,16,8}, purple base {32,16,8} extra {30,20,8}.
+
+# ---------- Input cursor ($09c66-$0a0ff) ----------
+F_09c66 InputCursor_Reset
+@InputCursor_Reset InputCursor_Reset(a0 = cursor/input record) : releases its 12 buttons, sets the limits
+@InputCursor_Reset x 0..$c0fff and y 0..$90fff (12 x 9 tiles, 16.16) and clears position/speed.

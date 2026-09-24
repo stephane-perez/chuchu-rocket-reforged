@@ -1,0 +1,264 @@
+# Game logic names (batch 1). Format: see tools/rename.py
+# ------------------------------------------------------------------ top level
+F_0a976 App_FrontEndStateMachine
+F_07d54 FrontEnd_Run
+F_0543e Demo_Run
+F_05426 Demo_PickRandomLevel
+F_08976 Round_Run
+F_08894 Round_UpdateLogic
+F_097d8 Round_SetState
+F_086cc Round_InitModules
+F_087a4 Round_SetupLevel
+F_0ac66 Level_SetIndex
+F_0adb6 Level_GetHeader
+F_0ad90 Level_GetCell
+F_0ade0 Level_GetArrowStock
+# ------------------------------------------------------------------ creatures
+F_06692 Creature_Move
+F_05664 Mice_Update
+F_05584 Mouse_Spawn
+F_05628 Mouse_Remove
+F_058e2 Mice_RemoveAll
+F_054d6 Mice_SpawnFromLevel
+F_0a87e Mouse_TouchesCat
+F_0a6d8 Cats_Update
+F_0a638 Cat_Spawn
+F_0a6a6 Cat_Remove
+F_0a8f8 Cats_RemoveAll
+F_09a80 Spawners_Update
+F_09960 Spawners_InitFromLevel
+# ------------------------------------------------------------------ arrows
+F_05008 Arrows_Age
+F_051d0 Arrow_Remove
+F_05086 Arrow_HitByCat
+F_050c8 Arrow_Create
+F_05246 Arrows_RemoveAll
+F_0b7e6 Player_PlaceArrow
+F_05a26 Cell_ClearType
+# ------------------------------------------------------------------ rockets
+F_0bea4 Rocket_Enter
+F_0bff4 Rocket_FindByOwner
+F_0bfec Rockets_GetCount
+F_0be4c Rockets_UpdateAnim
+F_12ca0 Hud_FlashScoreBox
+# ------------------------------------------------------------------ players, score
+F_0b2a4 Players_Update
+F_0b7d6 Player_Get
+F_0b7ce Players_GetCount
+F_0b7aa Players_SetCount
+F_0b76e Player_AddScore
+F_0b78a Player_CatInRocket
+F_0b256 Players_SortByScore
+F_0bc5c Cursor_Get
+F_09ca6 Input_UpdateCursor
+# ------------------------------------------------------------------ AI
+F_04a7e Ai_Update
+F_04dac Ai_FindBestArrow
+F_049e0 Ai_IsArrowOnFlow
+F_04a30 Ai_DoesArrowReachRocket
+F_06fb4 Ai_UpdatePathMaps
+F_07b84 Ai_GetFlowMap
+F_07b8c Ai_GetRocketMap
+# ------------------------------------------------------------------ spinner
+F_0c338 Spinner_Trigger
+F_0c3a2 Spinner_Spin
+F_0c352 Spinner_EndEvent
+F_0c306 Spinner_CancelEvent
+F_0c2e8 Spinner_TickEvent
+F_0c5b8 Spinner_CatAttack
+F_0c770 Spinner_EverybodyMove
+# ------------------------------------------------------------------ misc
+F_0bca0 Random
+F_0d31e Sfx_Play
+F_0d394 Sfx_PlayUrgent
+F_0cf98 Music_Play
+F_0ce1a Sound_Update
+F_10a22 Render_Frame
+F_108a4 Render_InitAll
+F_12a1c Hud_Update
+F_12c8c Hud_InvalidateArrows
+F_04a7c Round_EmptyHook
+# ------------------------------------------------------------------ globals
+B_27a74 gRoundState
+B_27a76 gGameMode
+B_27a80 gRoundStartClock
+B_2a866 gLevelSet
+B_2a868 gLevelIndex
+B_2a9c0 gLevelMap
+B_2a8c6 gLevelHeader
+B_21614 gArrowCells
+B_2219a gArrowRowMask
+B_2210c gArrowCounts
+B_223f6 gMice
+B_23296 gMiceActiveMask
+B_232c8 gMiceCount
+B_232ca gTurnTable
+B_27d8e gCats
+B_28106 gCatsActiveMask
+B_2810a gCatOccupancy
+B_2a9e4 gPlayers
+B_2ad60 gPlayerCount
+B_2ad7c gCursors
+B_21584 gAiPlayers
+B_2b8e0 gRockets
+B_2b9a4 gRocketCount
+B_2bb26 gSpinnerActive
+B_2bb28 gSpinnerEvent
+B_2bb2e gSpinnerPlayer
+B_2ade4 gRandomSeed
+B_223d6 gPuzzleFastForward
+D_19bd6 MouseSpeeds
+D_1a032 CatSpeeds
+D_1a404 ColumnPan
+D_19bce AiReactionFrames
+
+# ================================================================== headers
+@App_FrontEndStateMachine Main application state machine (front end, demo, game).
+@App_FrontEndStateMachine State in B_2831e: 0 = boot (Atari intro, logos, title),
+@App_FrontEndStateMachine 1 = logos + title again (after the demo), 2 = front end menus,
+@App_FrontEndStateMachine 3 = demo mode, 4 = quit.
+
+@Round_Run Plays one round: sets up the level, then loops until the round ends.
+@Round_Run Local state machine on gRoundState (see Round_UpdateLogic); each loop
+@Round_Run iteration updates the logic, draws a frame and waits for the screen swap.
+@Round_Run gGameMode: 0 = 4-player battle, 1 = team battle, 2 = puzzle,
+@Round_Run 3 = stage challenge. gLevelSet: 0-3 = puzzle worlds, 4 = stage
+@Round_Run challenge, 5 = battle levels.
+
+@Round_UpdateLogic One frame of game logic, dispatched on gRoundState:
+@Round_UpdateLogic   state 4 = normal play: age arrows, move cats, move mice,
+@Round_UpdateLogic             spawn creatures, update players (input/AI/arrows),
+@Round_UpdateLogic             game clock, AI path maps, spinner event timer
+@Round_UpdateLogic   state 2/3  = puzzle running / puzzle fast forward
+@Round_UpdateLogic   state 6    = spinner roulette (Spinner_Spin)
+@Round_UpdateLogic   state 9    = demo: go to the next level (0-24, wraps)
+
+@Round_SetState in: d0 = new round state. Entering state 4 (play) records the
+@Round_SetState frame clock in gRoundStartClock.
+
+@Level_GetCell in: d0 = row (0-8), d1 = column (0-11). out: a0 = cell (2 bytes)
+@Level_GetCell in the current level map: map + $22 + row*24 + column*2.
+@Level_GetCell Cell byte 0: bits 0-3 = walls, bits 4-6 = type
+@Level_GetCell   ($00 empty, $10 spawner, $20 rocket, $30 hole, $40 arrow).
+@Level_GetCell Cell byte 1: bits 0-1 = arrow direction (0 left, 1 right, 2 down, 3 up).
+
+@Level_GetArrowStock Puzzle mode: number of arrows of direction d0 available in the
+@Level_GetArrowStock level (level header bytes $1e-$21, one per direction).
+
+@Creature_Move Moves one creature (mouse or cat) by d0 (16.16 fixed point, in tiles).
+@Creature_Move in: a0 = creature, d0 = distance for this frame.
+@Creature_Move Creature record (26 bytes):
+@Creature_Move   +$00.l x   (high word = column 0-11, low word $8000 = tile centre)
+@Creature_Move   +$04.l y   (high word = row 0-8)
+@Creature_Move   +$08.l animation counter
+@Creature_Move   +$10.w direction (0 left, 1 right, 2 down, 3 up)
+@Creature_Move   +$12.w kind (1 mouse, 2 gold mouse, 3 purple mouse, 4 cat)
+@Creature_Move   +$14.w state (0 free slot, 1 walking, 2 falling into a hole,
+@Creature_Move          3 caught / flying, 5 entering a rocket)
+@Creature_Move   +$16.w "state just changed" flag
+@Creature_Move Algorithm:
+@Creature_Move   if the current tile is a rocket: state = 5, Rocket_Enter()
+@Creature_Move   if the current tile is a hole:   state = 2 (falls)
+@Creature_Move   while distance left:
+@Creature_Move     advance along the direction; the board wraps around (12 x 9)
+@Creature_Move     when crossing the centre of a tile:
+@Creature_Move       index = (arrow ? arrow direction : direction) * 16 + walls
+@Creature_Move       new direction = gTurnTable[index]   ("turn right at walls")
+@Creature_Move       a cat meeting an arrow that points against it damages the
+@Creature_Move       arrow (Arrow_HitByCat)
+@Creature_Move       on a turn: snap to the centre, keep the remaining distance
+
+@Mice_Update Moves every mouse (up to 128, gMice, active bits in gMiceActiveMask).
+@Mice_Update Speed = MouseSpeeds[1], or [0]/[2] during the Slow Down / Speed Up
+@Mice_Update spinner events; puzzle fast forward uses [2]. During Mouse Monopoly
+@Mice_Update the mice fly straight to the rocket of the spinner player.
+@Mice_Update A mouse that touches a cat (Mouse_TouchesCat) is caught (state 3);
+@Mice_Update a mouse that fell or was caught is removed after 8 animation frames.
+
+@Mouse_Spawn in: d0 = row, d1 = column, d2 = direction, kind and flight slot on
+@Mouse_Spawn the stack. Takes the first free slot of gMice.
+
+@Mouse_TouchesCat in: a0 = mouse. out: d0 = 1 if a cat in the same tile is closer
+@Mouse_TouchesCat than the catch distance on both axes.
+
+@Cats_Update Moves every cat (up to 32, gCats). Same speed rules as the mice with
+@Cats_Update CatSpeeds (cats are slower). Also rebuilds gCatOccupancy, a per-tile
+@Cats_Update bit mask of the cats standing in or next to each tile (collisions).
+
+@Spawners_Update Spawns mice and cats from the spawner tiles ($10) of the level.
+@Spawners_Update The spawn mode depends on the spinner event (Mouse Mania, Cat Mania...)
+@Spawners_Update and on the stage challenge objective.
+
+@Arrows_Age Battle, team and challenge modes: every arrow loses one frame of life
+@Arrows_Age per frame (arrow cell +$18) and is removed when it reaches zero.
+@Arrows_Age Arrow cell record (26 bytes, gArrowCells[9][12]):
+@Arrows_Age   +$00.w column, +$04.w row, +$10.w direction, +$12.w owner player,
+@Arrows_Age   +$14.w health (0 none, 2 new, 1 damaged once), +$18.w frames left
+@Arrows_Age   (the arrow blinks when fewer than 75 frames are left).
+
+@Arrow_Remove in: d0 = row, d1 = column. Removes the arrow, updates the owner's
+@Arrow_Remove arrow count and the arrow row mask.
+
+@Arrow_HitByCat A cat walked into an arrow pointing against it: a new arrow
+@Arrow_HitByCat becomes damaged, a damaged arrow is removed (two hits).
+
+@Arrow_Create in: d0 = row, d1 = column, d2 = direction, owner on the stack.
+@Arrow_Create out: a0 = arrow cell, or 0 if the tile holds an arrow, a hole,
+@Arrow_Create a spawner or a rocket.
+
+@Player_PlaceArrow in: a0 = player, d0 = row, d1 = column, d2 = direction.
+@Player_PlaceArrow Puzzle: clicking an arrow removes it, otherwise one arrow of the
+@Player_PlaceArrow level stock is placed (error sound when none is left).
+@Player_PlaceArrow Other modes: a player owns 3 arrow slots; the new arrow replaces
+@Player_PlaceArrow a free slot or the player's oldest arrow.
+
+@Rocket_Enter A creature entered a rocket (a0 = creature):
+@Rocket_Enter   mouse        -> owner +1
+@Rocket_Enter   gold mouse   -> owner +50
+@Rocket_Enter   purple mouse -> owner +1 and the spinner starts (Spinner_Trigger)
+@Rocket_Enter   cat          -> the owner loses a third of his score
+@Rocket_Enter                   (Player_CatInRocket)
+
+@Player_AddScore in: d0 = player, d1 = points. The score never goes below 0.
+@Player_AddScore Player record: 222 bytes at gPlayers (+$46 active, +$48 score,
+@Player_AddScore +$52/+$56 cursor x/y, +$5a/+$5e cursor column/row, +$72 controller,
+@Player_AddScore 14 = CPU).
+
+@Player_CatInRocket A cat entered the player's rocket: score -= score / 3.
+
+@Players_Update Once per frame for every active player: read the controller
+@Players_Update (human) or run the AI (CPU, controller 14), clamp the cursor to the
+@Players_Update board, and place an arrow when a direction button is pressed.
+@Players_Update Puzzle mode also handles the GO / FFWD / REDO / EXIT buttons.
+
+@Ai_Update One CPU player per call (d0 = player, a0 = cursor). States:
+@Ai_Update   0 think: wait for the reaction delay, then look for the best arrow
+@Ai_Update            (Ai_FindBestArrow, up to 3 strategies)
+@Ai_Update   1 move:  slide the cursor towards the chosen tile
+@Ai_Update   2 place: press the direction button for the chosen arrow
+@Ai_Update The reaction delay comes from AiReactionFrames plus a random part.
+
+@Ai_FindBestArrow Uses the path maps (Ai_GetFlowMap / Ai_GetRocketMap): for each
+@Ai_FindBestArrow empty tile on a creature flow, the arrow direction that sends the flow
+@Ai_FindBestArrow to the target rocket by the shortest path. out: d0 = 1 if found,
+@Ai_FindBestArrow the tile and direction are stored in the AI record.
+
+@Ai_UpdatePathMaps Recomputes, a piece per frame, the maps of the tiles followed by
+@Ai_UpdatePathMaps the creatures and their distances to each rocket (used by the AI).
+
+@Spinner_Trigger A purple mouse entered the rocket of player d0: remember the
+@Spinner_Trigger player and switch the round to state 6 (roulette).
+
+@Spinner_Spin Picks a random event (0-7) and applies it:
+@Spinner_Spin   0 Cat Attack      1 Cat Mania       2 Everybody Move  3 Mouse Mania
+@Spinner_Spin   4 Mouse Monopoly  5 Place Arrows Again  6 Slow Down  7 Speed Up
+@Spinner_Spin (same order as the pictures in SPINNER.GFX). Timed events last 500
+@Spinner_Spin frames, Mouse Monopoly 150.
+
+@Spinner_TickEvent Counts down the running spinner event and ends it at zero.
+
+@Random in: d0 = n. out: d0 = random number in 0..n-1.
+@Random Linear congruential generator: seed = seed * $10dcd + $29 (gRandomSeed).
+
+@Sfx_Play in: d0 = sound, d1 = priority, d2 = stereo pan (see ColumnPan).
+@Music_Play in: d1 = tune number.

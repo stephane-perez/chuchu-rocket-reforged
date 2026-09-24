@@ -1,0 +1,19 @@
+Executables prets a l'emploi (construits avec build.py).
+Chaque dossier contient CHUCHU.TOS + CHUCHU.LNK : copier les DEUX fichiers
+ensemble dans un meme dossier (disquette, disque dur, dossier GEMDOS d'Hatari)
+et lancer CHUCHU.TOS. Le jeu demande 1 Mo de memoire.
+
+  reforged/     VERSION DE REFERENCE : python build.py --reforged
+                - optimisations (+36 % d'images/s sur STE, +5 % sur STF),
+                  dont la restauration du decor au blitter
+                - correction du bug d'origine : souris coupee en quittant
+                  apres une partie sans joueur a la souris
+                - bandeau "AI REFORGED 2026" sur l'ecran titre
+  reforged_sans_blit/  la meme sans l'optimisation blitter (-D NO_BLIT) :
+                pour comparer sur Mega STe a 16 MHz, ou le CPU va plus vite
+  reconstruit/  reconstruit depuis le source sans aucune modification,
+                identique octet pour octet a l'original decompresse
+
+Les executables ne sont pas compresses (117 Ko au lieu de 65 Ko pour
+l'original compresse Pack-Ice) : cela ne change rien a leur fonctionnement.
+La version originale d'origine (compressee) est dans ../orig/.

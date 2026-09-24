@@ -331,13 +331,13 @@ def main():
     if os.path.exists(gl):
         for k, v in json.load(open(gl)).items():
             names[int(k)] = v
-            notes[int(k)] = '%s : identifie par comparaison avec les sources GodLib' % v
+            notes[int(k)] = '%s : identified by matching against the GodLib sources' % v
     for line in open(os.path.join(here, 'names.txt')):
         line = line.split('#')[0].split()
         if len(line) >= 2:
             off, nm = int(line[0], 16), line[1]
             names[off] = nm.rstrip('?')
-            notes[off] = nm.rstrip('?') + (' (nom suppose)' if nm.endswith('?') else '')
+            notes[off] = nm.rstrip('?') + (' (name is a guess)' if nm.endswith('?') else '')
     p = PRG(open(args[0], 'rb').read())
     tr = json.load(open(args[1]))
     e = Emitter(p, tr, names=names, pad=pad)

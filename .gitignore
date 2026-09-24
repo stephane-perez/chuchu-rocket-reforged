@@ -4,3 +4,5 @@ ref/
 run/*.avi
 run/hatari_home/
 __pycache__/
+perf/work/
+perf/.hatari/

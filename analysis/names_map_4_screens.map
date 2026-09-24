@@ -1,0 +1,473 @@
+# Range D: F_0d4bc .. F_10960  (render modules: intro, front end screens, fonts, fades,
+# board/creature sprite drawing, level select). Each render module has a Load (called
+# from Render_LoadAll), an Init (Render_InitAll) and a Free (Render_FreeAll) entry.
+# Shared helpers used here (named by other ranges): F_13844 = logic (back) screen,
+# F_13830 = physic (shown) screen, F_1385c = background screen, F_1376a = swap screens,
+# F_162da = clear a screen, F_1636a = copy a 32000-byte screen, F_007a2 = relocate a
+# .BSB sprite block, F_0aac0 = "machine has less than 2 MB" (low-memory mode),
+# F_10e0c/F_10e30 = low-memory asset cache pages. B_2db20 is the shared GodLib
+# graphic canvas (VRAM ptr at +0, draw functions at +$c, clipped functions at +$10;
+# function +$18 = DrawSprite, +$c = DrawBox).
+
+# ------------------------------------------------------------------ arrows (tail)
+# F_0d4bc is already named ArrowGfx_DrawSprite in C.map (arrows module); kept commented here
+# to avoid a duplicate entry. Suggested header if C.map lacks one:
+# F_0d4bc ArrowGfx_DrawSprite
+# @ArrowGfx_DrawSprite ArrowGfx_DrawSprite(d0 = frame, d1 = x, d2 = y, a0 = screen): draws frame d0
+# @ArrowGfx_DrawSprite of the ARROWS.BSB sprite block (B_2beba) at pixel (x,y) on the given screen,
+# @ArrowGfx_DrawSprite through the shared canvas's DrawSprite function.
+
+# ------------------------------------------------------------------ Atari intro
+F_0d616 AtariIntro_DrawFujiPart
+@AtariIntro_DrawFujiPart AtariIntro_DrawFujiPart(d0 = part, d1 = lines): draws the first d1 lines
+@AtariIntro_DrawFujiPart (clamped to the FUJI.GFX height) of one third of the Fuji logo on the
+@AtariIntro_DrawFujiPart back screen at line 80: part 0 = FUJILEFT, 1 = FUJIMID, 2 = FUJIRGHT.
+F_0d6a2 AtariIntro_DrawLetterRise
+@AtariIntro_DrawLetterRise AtariIntro_DrawLetterRise(d0 = letter, d1 = height): draws letter d0
+@AtariIntro_DrawLetterRise (0-4, "ATARI") of ATARI.BSB on the back screen so that its top d1
+@AtariIntro_DrawLetterRise lines rise from line 180; does nothing when height is 0.
+B_2bebe gAtariBallSprites
+B_2bec2 gAtariLetterSprites
+B_2bec6 gFujiLeftSprite
+B_2beca gFujiMidSprite
+B_2bece gFujiRightSprite
+B_2bed2 gAtariGfx
+B_2bed6 gFujiGfx
+B_2beda gAtariPalette
+
+# ------------------------------------------------------------------ congratulations screen
+F_0d9e0 Congrats_Load
+@Congrats_Load Congrats_Load(): loads and relocates CONGRATS.BSB unless the machine is in
+@Congrats_Load low-memory mode (then Congrats_ReloadLowMem fetches it from the asset cache);
+@Congrats_Load resets the message type to 0.
+F_0da0e Congrats_InitFireworks
+@Congrats_InitFireworks Congrats_InitFireworks(): resets the 8 firework records (gFireworks,
+@Congrats_InitFireworks $204 bytes each) and staggers their start delays (3 frames apart).
+F_0da48 Congrats_Free
+@Congrats_Free Congrats_Free(): frees CONGRATS.BSB (only when it was loaded, i.e. not in
+@Congrats_Free low-memory mode).
+F_0da60 Congrats_Run
+@Congrats_Run Congrats_Run(): the "congratulations" screen after a completed set: selects asset
+@Congrats_Run page 0, plays music 12, fades to the board palette, then each frame draws the
+@Congrats_Run fireworks, the CONGRATS sprite and one or two message sprites (gCongratsType; two
+@Congrats_Run in gGameMode 1) until fire or key $44 (F10) is pressed.
+F_0dbc6 Congrats_SetType
+@Congrats_SetType Congrats_SetType(d0 = type): chooses which message the congratulations
+@Congrats_SetType screen shows (stored in gCongratsType).
+F_0dbce Congrats_DrawFireworks
+@Congrats_DrawFireworks Congrats_DrawFireworks(): updates and draws the fireworks on the back
+@Congrats_DrawFireworks screen (F_157f0 does the work).
+F_0dbdc Congrats_ResetFirework
+@Congrats_ResetFirework Congrats_ResetFirework(a0 = firework): restarts one firework: random
+@Congrats_ResetFirework delay 4-7, random x 10-309, y = 198, upward speed -5 or -6.
+F_0dc32 Congrats_ReloadLowMem
+@Congrats_ReloadLowMem Congrats_ReloadLowMem(): low-memory mode only: takes CONGRATS.BSB from
+@Congrats_ReloadLowMem asset cache page 0 (entry 0) and relocates it.
+B_2befa gCongratsSprite
+B_2befe gCongratsType
+B_2bf00 gFireworks
+
+# ------------------------------------------------------------------ board (checkerboard tiles)
+F_0dc54 Board_GetCellScreenAddr
+@Board_GetCellScreenAddr Board_GetCellScreenAddr(d0 = column, d1 = row, a0 = screen) -> a0:
+@Board_GetCellScreenAddr address in a 4-plane ST screen of the top-left of a 16x16 board cell
+@Board_GetCellScreenAddr (the board starts at pixel x = 128).
+F_0dc96 Board_SetFullSize
+@Board_SetFullSize Board_SetFullSize(d0 = flag): 1 = draw board objects at full size (16x16
+@Board_SetFullSize cells, in game); 0 = small 8x8 version used by the level-select preview.
+F_0dc9e Board_IsFullSize
+@Board_IsFullSize Board_IsFullSize() -> d0: returns the flag set by Board_SetFullSize.
+F_0dca6 Board_Load
+@Board_Load Board_Load(): loads and relocates BOARD.BSB (the two checker tiles) and loads
+@Board_Load BOARD.PAL into gBoardPalette.
+F_0dcd8 Board_Init
+@Board_Init Board_Init(): draws the empty checkerboard onto the background screen.
+F_0dce6 Board_Free
+@Board_Free Board_Free(): frees BOARD.BSB.
+F_0dcf4 Board_DrawCheckerboard
+@Board_DrawCheckerboard Board_DrawCheckerboard(a0 = screen): clears the screen and draws the
+@Board_DrawCheckerboard 12x9 board with alternating tiles from x = 128.
+F_0dd6e Board_RedrawTile
+@Board_RedrawTile Board_RedrawTile(d0 = row, d1 = column): redraws the plain checker tile of
+@Board_RedrawTile one cell on the background screen (used when the board spins).
+F_0ddd0 Board_GetPalette
+@Board_GetPalette Board_GetPalette() -> a0: the palette loaded from BOARD.PAL.
+F_0ddd8 Board_SetColours
+@Board_SetColours Board_SetColours(d0 = index 0-3): picks a pair of ST colours from
+@Board_SetColours BoardColourTable into gBoardColourA/B (chosen by Round_Run per level type).
+B_2cf20 gBoardFullSize
+B_2cf22 gBoardTiles
+B_2cf26 gBoardPalette
+B_2cf42 gBoardColourA
+B_2cf44 gBoardColourB
+D_1a82e BoardColourTable
+
+# ------------------------------------------------------------------ mice (ChuChu) sprites
+F_0ddf4 MiceGfx_Load
+@MiceGfx_Load MiceGfx_Load(): loads the 54 mouse sprite files of MouseSpriteFileNames into
+@MiceGfx_Load gMouseSprites[3 themes: CHU, SC0, SC1][3 kinds: normal, gold G, purple P]
+@MiceGfx_Load [6 anims: left, right, down, up, fall, die] and relocates them.
+F_0dea2 MiceGfx_SelectTheme
+@MiceGfx_SelectTheme MiceGfx_SelectTheme(): points gMouseSpriteSet at the sprite theme chosen
+@MiceGfx_SelectTheme in B_235aa.
+F_0deba MiceGfx_Free
+@MiceGfx_Free MiceGfx_Free(): frees all mouse sprite blocks and clears the pointers.
+F_0df1c MiceGfx_Draw
+@MiceGfx_Draw MiceGfx_Draw(): draws every visible mouse of gMice (128 slots) on the back
+@MiceGfx_Draw screen: walking by direction, falling, or dying, animation frame = field 8 & 7.
+@MiceGfx_Draw In blitter mode (F_015dc() == 1) the assembler routine F_15b0a does it instead.
+B_2cf46 gMouseSprites
+B_2d066 gMouseSpriteSet
+D_1a85e MouseSpriteFileNames
+
+# ------------------------------------------------------------------ control select screen
+F_0e0fa ControlSel_Load
+@ControlSel_Load ControlSel_Load(): empty hook (the control-select screen loads nothing).
+F_0e0fc ControlSel_Init
+@ControlSel_Init ControlSel_Init(): empty hook.
+F_0e0fe ControlSel_Free
+@ControlSel_Free ControlSel_Free(): empty hook.
+F_0e100 ControlSel_Draw
+@ControlSel_Draw ControlSel_Draw(): draws the "CONTROL SELECT" screen on the back screen:
+@ControlSel_Draw clears it, draws the cursor, then the title and the list of items.
+F_0e124 ControlSel_Clear
+@ControlSel_Clear ControlSel_Clear(a0 = screen): clears the screen.
+F_0e12c ControlSel_DrawCursor
+@ControlSel_DrawCursor ControlSel_DrawCursor(a0 = screen): prints the "O" cursor with font 2 at
+@ControlSel_DrawCursor x 16, in front of the selected line (y = 32 + 16 * selection).
+F_0e160 ControlSel_DrawItems
+@ControlSel_DrawItems ControlSel_DrawItems(a0 = screen): prints the title and, for each item,
+@ControlSel_DrawItems its name at x 32 and (if it has more than one choice) its current value
+@ControlSel_DrawItems at x 160, one line every 16 pixels.
+
+# ------------------------------------------------------------------ empty module
+F_0e1ea StubModule_Load
+@StubModule_Load StubModule_Load(): empty Load hook of a render module with no code (sits
+@StubModule_Load between the control-select and credits modules).
+F_0e1ec StubModule_Init
+@StubModule_Init StubModule_Init(): empty Init hook of the same empty module.
+F_0e1ee StubModule_Free
+@StubModule_Free StubModule_Free(): empty Free hook of the same empty module.
+
+# ------------------------------------------------------------------ credits
+F_0e1f0 Credits_Load
+@Credits_Load Credits_Load(): loads CREDITS.TXT from the link file and stores its size.
+F_0e21a Credits_Init
+@Credits_Init Credits_Init(): empty hook.
+F_0e21c Credits_Free
+@Credits_Free Credits_Free(): frees the credits text.
+F_0e22a Credits_ScrollStep
+@Credits_ScrollStep Credits_ScrollStep(): one frame of the credits scroller. Every 8 lines it
+@Credits_ScrollStep prints the next text line centred below the visible area (font 2, "@" at the
+@Credits_ScrollStep start = colour 1 heading) and mirrors it 216 lines up; then it moves the video
+@Credits_ScrollStep base down one line (hardware scroll over a 216-line loop) and waits a VBL.
+F_0e38c Credits_Begin
+@Credits_Begin Credits_Begin(): plays music 11, fades to black, clears the three screens, sets
+@Credits_Begin the credits palette and resets the text position and scroll line.
+F_0e3e2 Credits_Run
+@Credits_Run Credits_Run(): whole credits sequence: Credits_Begin, scroll until the end of the
+@Credits_Run text, fade to black over 128 frames, clear the screens.
+F_0e436 Credits_CopyBand
+@Credits_CopyBand Credits_CopyBand(a0 = src, a1 = dst): copies 8 screen lines (8 x 160 bytes).
+F_0e452 Credits_ClearBand
+@Credits_ClearBand Credits_ClearBand(a0 = dst): clears 8 screen lines (8 x 160 bytes).
+B_2d06a gCreditsText
+B_2d06e gCreditsSize
+B_2d072 gCreditsPos
+B_2d076 gCreditsScrollLine
+
+# ------------------------------------------------------------------ palette fades
+F_0e46e Fade_Init
+@Fade_Init Fade_Init(): GodLib: Fade_Init. Fills the black palette (16 x $000) and the white
+@Fade_Init palette (16 x $fff).
+F_0e490 Fade_Main
+@Fade_Main Fade_Main(a0 = target palette, d0 = frames): GodLib: Fade_Main. Fades the hardware
+@Fade_Main palette from its current colours to the target over d0 VBLs, then sets the target.
+F_0e524 Fade_GetpBlackPal
+@Fade_GetpBlackPal Fade_GetpBlackPal() -> a0: GodLib: Fade_GetpBlackPal (all-black palette).
+F_0e52c Fade_GetpWhitePal
+@Fade_GetpWhitePal Fade_GetpWhitePal() -> a0: GodLib: Fade_GetpWhitePal (all-white palette).
+B_2d078 gFadeBlackPal
+B_2d098 gFadeWhitePal
+
+# ------------------------------------------------------------------ fonts (3 bitmap fonts)
+F_0e534 Fonts_Load
+@Fonts_Load Fonts_Load(): loads TNYFONT2.BSB (font 0), TINYFONT.BSB (font 1) and 8X8FONT.BSB
+@Fonts_Load (font 2), builds each font's character-width table, sets the space width and
+@Fonts_Load height of each font, and fills the ASCII -> sprite index maps (letters, digits,
+@Fonts_Load punctuation; $ff = no glyph).
+F_0e780 Fonts_Init
+@Fonts_Init Fonts_Init(): empty hook.
+F_0e782 Fonts_Free
+@Fonts_Free Fonts_Free(): frees the three font sprite blocks and their width tables.
+F_0e7bc Fonts_DrawString
+@Fonts_DrawString Fonts_DrawString(d0 = font, a0 = string, d1 = x, d2 = y, a1 = screen): prints
+@Fonts_DrawString a string glyph by glyph (unknown characters advance by the space width).
+F_0e850 Fonts_DrawStringCol
+@Fonts_DrawStringCol Fonts_DrawStringCol(d0 = font, a0 = string, d1 = x, d2 = y, a1 = screen,
+@Fonts_DrawStringCol byte colour on stack): same code as Fonts_DrawString; callers pass a colour
+@Fonts_DrawStringCol byte that this build ignores.
+F_0e8e4 Fonts_GetStringWidth
+@Fonts_GetStringWidth Fonts_GetStringWidth(d0 = font, a0 = string) -> d0: width in pixels of the
+@Fonts_GetStringWidth string (used to centre text).
+F_0e944 Fonts_BuildWidthTable
+@Fonts_BuildWidthTable Fonts_BuildWidthTable(a0 = sprite block) -> a0: allocates a byte table
+@Fonts_BuildWidthTable with, for each glyph, 1 + the width of its used columns (found from the mask).
+B_2d0b8 gFontSprites
+B_2d0c4 gFontMetrics
+B_2d0d0 gFontCharMaps
+B_2d3d0 gFontCharWidths
+
+# ------------------------------------------------------------------ front end main menu screen
+F_0e9c2 Front_Load
+@Front_Load Front_Load(): unless in low-memory mode, loads FRONT.PI1, FLAME.GFX, MENUTITL.BSB,
+@Front_Load the unlit/lit rocket buttons of the 3 menus (MAIN/GAME/HELP RKTB/RKTF.GFX),
+@Front_Load CHUFRONT.BSB and SPEECH.BSB, then builds the rocket sprites. Always sets the flame
+@Front_Load and Chu animation speeds (halved on some machine types, F_01342 != 6).
+F_0eb20 Front_BuildRocketSprites
+@Front_BuildRocketSprites Front_BuildRocketSprites(): cuts the rocket .GFX images into 12-byte
+@Front_BuildRocketSprites sprite records (4 main, 5 game, 6 help items, unlit and lit; 4 flame
+@Front_BuildRocketSprites frames) and copies the FRONT.PI1 palette into gFrontPalette.
+F_0ed78 Front_Init
+@Front_Init Front_Init(): empty hook.
+F_0ed7a Front_Free
+@Front_Free Front_Free(): frees all front-end graphics (not in low-memory mode).
+F_0edec Front_DrawFrame
+@Front_DrawFrame Front_DrawFrame(): one frame of the main menu: selects asset page 1, swaps
+@Front_DrawFrame screens, copies the background, animates the flame, draws the selected rocket
+@Front_DrawFrame lit with its flame and the matching speech bubble for the current menu
+@Front_DrawFrame (B_278b0: 0 main, 1 help, 2 game), then the animated Chu.
+F_0f03c Front_DrawBackground
+@Front_DrawBackground Front_DrawBackground(): builds the menu background screen: FRONT.PI1
+@Front_DrawBackground picture, every unlit rocket of the current menu and the menu title sprite.
+F_0f190 Front_GetPalette
+@Front_GetPalette Front_GetPalette() -> a0: the FRONT.PI1 palette (used to fade the menus in).
+F_0f198 Front_DrawChuAnim
+@Front_DrawChuAnim Front_DrawChuAnim(): advances and draws the animated Chu (CHUFRONT.BSB) at
+@Front_DrawChuAnim (272,150) on the back screen.
+F_0f204 Front_ReloadLowMem
+@Front_ReloadLowMem Front_ReloadLowMem(): low-memory mode only: takes the front-end graphics
+@Front_ReloadLowMem from asset cache page 1, relocates them and rebuilds the rocket sprites.
+B_2d3dc gFrontFlameAnim
+B_2d3e4 gFrontChuAnim
+B_2d3f0 gFrontRocketGfx
+B_2d42c gFrontRocketSprites
+B_2d5c4 gFrontPalette
+
+# ------------------------------------------------------------------ halo (puzzle failure marker)
+F_0f2d2 Halo_Load
+@Halo_Load Halo_Load(): loads and relocates HALO.BSB.
+F_0f2f0 Halo_Init
+@Halo_Init Halo_Init(): clears the halo position, enable flag and timer.
+F_0f306 Halo_Free
+@Halo_Free Halo_Free(): frees HALO.BSB.
+F_0f314 Halo_Draw
+@Halo_Draw Halo_Draw(): while the halo is enabled and its timer runs, draws it (clipped) on the
+@Halo_Draw board of the back screen; if it spills past the right edge, repairs the left strip.
+F_0f3a8 Halo_SetPosition
+@Halo_SetPosition Halo_SetPosition(d0 = x, d1 = y, board fixed point): centres the halo on that
+@Halo_SetPosition point (the mouse or cat that made a puzzle fail) and shows it for 2 frames.
+F_0f3e6 Halo_Enable
+@Halo_Enable Halo_Enable(): turns the halo on.
+F_0f3f0 Halo_Refresh
+@Halo_Refresh Halo_Refresh(): restarts the halo display timer (2 frames, one per screen).
+F_0f3fa Halo_RestoreLeftEdge
+@Halo_RestoreLeftEdge Halo_RestoreLeftEdge(a0 = source, a1 = dest, d0 = y): copies the leftmost
+@Halo_RestoreLeftEdge 16 pixels of the halo's lines (clamped to line 200) from the background
+@Halo_RestoreLeftEdge screen, erasing the part of the halo that wrapped round.
+B_2d5e4 gHalo
+B_2d5f0 gHaloSprite
+
+# ------------------------------------------------------------------ hatches (mouse/cat spawners)
+F_0f460 Hatch_Load
+@Hatch_Load Hatch_Load(): loads and relocates HATCH.BSB and HATCHSML.BSB.
+F_0f4a6 Hatch_Init
+@Hatch_Init Hatch_Init(): draws all the level's hatches onto the background screen.
+F_0f4b4 Hatch_Free
+@Hatch_Free Hatch_Free(): frees both hatch sprite blocks.
+F_0f4ce Hatch_Draw
+@Hatch_Draw Hatch_Draw(d0 = column, d1 = row, a0 = screen): draws a hatch in that cell (full
+@Hatch_Draw size or small preview, see Board_IsFullSize) and marks the row dirty.
+F_0f53a Hatch_DrawSmall
+@Hatch_DrawSmall Hatch_DrawSmall(d0 = column, d1 = row, a0 = screen): draws the 8x8 hatch of
+@Hatch_DrawSmall the level-select preview at (174 + 8 * column, 112 + 8 * row).
+F_0f586 Hatch_DrawAll
+@Hatch_DrawAll Hatch_DrawAll(a0 = screen): draws a hatch in every cell whose type is $1000.
+B_2d5f4 gHatchSprite
+B_2d5f8 gHatchSmallSprite
+
+# ------------------------------------------------------------------ help pages
+F_0f5ce Help_Load
+@Help_Load Help_Load(): loads the 7 help texts (BASICS.HLP, 4PBATTLE.HLP, ...) listed in
+@Help_Load HelpFileTable, with their sizes, into gHelpPages.
+F_0f630 Help_Init
+@Help_Init Help_Init(): empty hook.
+F_0f632 Help_Free
+@Help_Free Help_Free(): frees the 7 help texts.
+F_0f658 Help_DrawPage
+@Help_DrawPage Help_DrawPage(d0 = page): clears the back screen and prints a help text with
+@Help_DrawPage font 2: first line centred as a title, then word-wrapped at 320 pixels, 8 pixels
+@Help_DrawPage per line; handles CR/LF, TAB and "{x" colour codes.
+B_2d5fc gHelpPages
+D_1acea HelpFileTable
+
+# ------------------------------------------------------------------ hilite (player cursor squares)
+F_0f8a8 Hilite_Load
+@Hilite_Load Hilite_Load(): loads and relocates HILITE.BSB and enables the highlights.
+F_0f8ce Hilite_Init
+@Hilite_Init Hilite_Init(): enables the highlights.
+F_0f8d8 Hilite_Free
+@Hilite_Free Hilite_Free(): frees HILITE.BSB.
+F_0f8e6 Hilite_Draw
+@Hilite_Draw Hilite_Draw(): unless gRoundState is 5 or highlights are off, draws a highlight
+@Hilite_Draw square under each active player's cursor cell (F_15ea0).
+F_0f906 Hilite_Show
+@Hilite_Show Hilite_Show(): enables the cursor highlights.
+F_0f910 Hilite_Hide
+@Hilite_Hide Hilite_Hide(): disables the cursor highlights (during a rocket launch).
+B_2d634 gHiliteSprites
+D_1ad88 gHiliteEnabled
+
+# ------------------------------------------------------------------ holes
+F_0f918 Hole_Load
+@Hole_Load Hole_Load(): loads and relocates HOLE.BSB and HOLESMAL.BSB.
+F_0f95e Hole_Init
+@Hole_Init Hole_Init(): draws all the level's holes onto the background screen.
+F_0f972 Hole_DrawAll
+@Hole_DrawAll Hole_DrawAll(a0 = screen): draws a hole in every cell whose type is $3000.
+F_0f9bc Hole_Free
+@Hole_Free Hole_Free(): frees both hole sprite blocks.
+F_0f9d6 Hole_Draw
+@Hole_Draw Hole_Draw(d0 = column, d1 = row, a0 = screen): draws a hole in that cell, full size
+@Hole_Draw or small preview (174 + 8 * column, 112 + 8 * row), and marks the row dirty.
+B_2d638 gHoleSprite
+B_2d63c gHoleSmallSprite
+
+# ------------------------------------------------------------------ stage mission box
+F_0fa6a Mission_Load
+@Mission_Load Mission_Load(): copies the 7 mission text pointers (MissionTextTable: "GET MICE#
+@Mission_Load LEAD ALL CHUS#...", "FEED CAT...", "50 MICE...", ...) into gMissionTexts.
+F_0fa9e Mission_Init
+@Mission_Init Mission_Init(): empty hook.
+F_0faa0 Mission_Free
+@Mission_Free Mission_Free(): empty hook.
+F_0faa2 Mission_DrawStageBox
+@Mission_DrawStageBox Mission_DrawStageBox(): draws the framed box shown before a stage:
+@Mission_DrawStageBox "STAGE nn" (level number + 1), then the mission title and its lines ('#'
+@Mission_DrawStageBox separated) chosen by byte $1d of the level header, centred, with font 2.
+B_2d640 gMissionTexts
+D_1adb6 MissionTextTable
+D_1adb2 MissionBoxPos
+
+# ------------------------------------------------------------------ cats (KapuKapu) sprites
+F_0fc7e CatsGfx_Load
+@CatsGfx_Load CatsGfx_Load(): loads the 15 cat sprite files of CatSpriteFileNames into
+@CatsGfx_Load gCatSprites[3 themes: KAPU, SK0, SK1][5 anims: left, right, down, up, fall].
+F_0fcdc CatsGfx_SelectTheme
+@CatsGfx_SelectTheme CatsGfx_SelectTheme(): points gCatSpriteSet at the theme chosen in B_235aa.
+F_0fcf4 CatsGfx_Free
+@CatsGfx_Free CatsGfx_Free(): frees all cat sprite blocks and clears the pointers.
+F_0fd3e CatsGfx_Draw
+@CatsGfx_Draw CatsGfx_Draw(): draws every active cat of gCats (32 slots) on the back screen,
+@CatsGfx_Draw walking by direction or falling (clipped, 4 pixels higher than mice).
+@CatsGfx_Draw In blitter mode (F_015dc() == 1) the assembler routine F_15f46 does it instead.
+B_2d65c gCatSprites
+B_2d6bc gCatSpriteSet
+D_1aeae CatSpriteFileNames
+
+# ------------------------------------------------------------------ level select screen
+F_0fed6 LevelSelect_Load
+@LevelSelect_Load LevelSelect_Load(): unless in low-memory mode, loads LEVBUTON, LEVBUTOF,
+@LevelSelect_Load LEVTICK, LEVDIFF, LEVTITLE, LEVTIME, LEVBLANK (.BSB) and SELECT.PI1; always
+@LevelSelect_Load computes the 5x5 button grid positions (x = 46 + 16 * col, y = 32 + 16 * row).
+F_10000 LevelSelect_Init
+@LevelSelect_Init LevelSelect_Init(): sets the cursor from B_235da and asks every part of the
+@LevelSelect_Init screen (preview, buttons, ticks, times) to be redrawn on both screens.
+F_10046 LevelSelect_Free
+@LevelSelect_Free LevelSelect_Free(): frees the 8 level-select graphics (not in low-memory mode).
+F_100aa LevelSelect_Draw
+@LevelSelect_Draw LevelSelect_Draw(): redraws on the back screen whatever parts are flagged:
+@LevelSelect_Draw preview, "on" and "off" buttons, ticks, difficulty, best time, total time.
+F_100d6 LevelSelect_DrawButtonsOn
+@LevelSelect_DrawButtonsOn LevelSelect_DrawButtonsOn(): draws each flagged button (25) with
+@LevelSelect_DrawButtonsOn LEVBUTON.BSB ("button on" image) and counts its redraw flag down.
+F_10140 LevelSelect_DrawButtonsOff
+@LevelSelect_DrawButtonsOff LevelSelect_DrawButtonsOff(): draws each flagged button (25) with
+@LevelSelect_DrawButtonsOff LEVBUTOF.BSB ("button off" image) and counts its redraw flag down.
+F_101aa LevelSelect_DrawTicks
+@LevelSelect_DrawTicks LevelSelect_DrawTicks(): draws a tick (LEVTICK.BSB) on each flagged
+@LevelSelect_DrawTicks button whose level is completed (bit set in B_2a86c[gLevelSet]).
+F_1022a LevelSelect_DrawDifficulty
+@LevelSelect_DrawDifficulty LevelSelect_DrawDifficulty(): when B_234ee == 2 and flagged, draws
+@LevelSelect_DrawDifficulty the LEVDIFF.BSB frame of gLevSelDifficulty at (49,139).
+F_10282 LevelSelect_DrawPreview
+@LevelSelect_DrawPreview LevelSelect_DrawPreview(): when flagged, draws the "RANDOM" box for a
+@LevelSelect_DrawPreview random level, or the level name, time icon and small board preview
+@LevelSelect_DrawPreview (hatches, arrows, holes, walls); on the last pass copies the preview
+@LevelSelect_DrawPreview from the shown screen instead.
+F_10398 LevelSelect_RedrawButtonOn
+@LevelSelect_RedrawButtonOn LevelSelect_RedrawButtonOn(d0 = button): flags button d0 and its
+@LevelSelect_RedrawButtonOn tick to be drawn with the "on" image on the next 2 frames.
+F_103ac LevelSelect_RedrawButtonOff
+@LevelSelect_RedrawButtonOff LevelSelect_RedrawButtonOff(d0 = button): flags button d0 and its
+@LevelSelect_RedrawButtonOff tick to be drawn with the "off" image on the next 2 frames.
+F_103c0 LevelSelect_SetDifficulty
+@LevelSelect_SetDifficulty LevelSelect_SetDifficulty(d0 = value): stores the difficulty to show
+@LevelSelect_SetDifficulty and flags it for redraw.
+F_103d0 LevelSelect_SetCursor
+@LevelSelect_SetCursor LevelSelect_SetCursor(d0 = level): remembers the selected level (used for
+@LevelSelect_SetCursor its best time).
+F_103d8 LevelSelect_RedrawPreview
+@LevelSelect_RedrawPreview LevelSelect_RedrawPreview(): flags the level preview for redraw.
+F_103e2 LevelSelect_RedrawBestTime
+@LevelSelect_RedrawBestTime LevelSelect_RedrawBestTime(): flags the best time for redraw.
+F_103ec LevelSelect_RedrawTotalTime
+@LevelSelect_RedrawTotalTime LevelSelect_RedrawTotalTime(): flags the total time for redraw.
+F_103f6 LevelSelect_RedrawAllOff
+@LevelSelect_RedrawAllOff LevelSelect_RedrawAllOff(): flags all 25 buttons to be drawn "off".
+F_10410 LevelSelect_RedrawAllTicks
+@LevelSelect_RedrawAllTicks LevelSelect_RedrawAllTicks(): flags all 25 ticks for redraw.
+F_1042a LevelSelect_DrawBackground
+@LevelSelect_DrawBackground LevelSelect_DrawBackground(): builds the level-select background
+@LevelSelect_DrawBackground from SELECT.PI1, the title sprite for the mode (B_234f0) and the
+@LevelSelect_DrawBackground blank panel, then copies it to both screens.
+F_1052c LevelSelect_GetPalette
+@LevelSelect_GetPalette LevelSelect_GetPalette() -> a0: the SELECT.PI1 palette.
+F_10536 LevelSelect_ClearPreview
+@LevelSelect_ClearPreview LevelSelect_ClearPreview(): restores the preview area of the back
+@LevelSelect_ClearPreview screen from SELECT.PI1 (F_161d0).
+F_1056c LevelSelect_DrawLevelName
+@LevelSelect_DrawLevelName LevelSelect_DrawLevelName(): restores the name strip from SELECT.PI1
+@LevelSelect_DrawLevelName and prints the current level's name centred at (160,83) with font 0.
+F_105c8 LevelSelect_DrawTimeIcon
+@LevelSelect_DrawTimeIcon LevelSelect_DrawTimeIcon(): when B_234ee == 3 (timed mode), draws
+@LevelSelect_DrawTimeIcon LEVTIME.BSB at (10,122).
+F_10614 LevelSelect_DrawBestTime
+@LevelSelect_DrawBestTime LevelSelect_DrawBestTime(): when B_234ee == 3 and flagged, prints the
+@LevelSelect_DrawBestTime selected level's best time (B_2a894) as "mm:ss" at y = 130.
+F_10692 LevelSelect_DrawTotalTime
+@LevelSelect_DrawTotalTime LevelSelect_DrawTotalTime(): when B_234ee == 3 and flagged, prints the
+@LevelSelect_DrawTotalTime sum of the 25 best times as "mm:ss" at y = 150.
+F_10718 LevelSelect_ReloadLowMem
+@LevelSelect_ReloadLowMem LevelSelect_ReloadLowMem(): low-memory mode only: takes the 8
+@LevelSelect_ReloadLowMem level-select graphics from asset cache page 3 and relocates them.
+B_2d6c0 gLevSelGfx
+B_2d6cc gLevSelDiffSprites
+B_2d6d0 gLevSelTitleSprites
+B_2d6d4 gLevSelTimeSprite
+B_2d6d8 gLevSelBlankSprite
+B_2d6dc gLevSelPicture
+B_2d6e0 gLevSelRedraw
+B_2d6e1 gLevSelDiffRedraw
+B_2d6e2 gLevSelDifficulty
+B_2d6e3 gLevSelCursor
+B_2d6e4 gLevSelBestTimeRedraw
+B_2d6e5 gLevSelTotalRedraw
+
+# ------------------------------------------------------------------ render module table
+F_107e2 Render_LoadAll
+@Render_LoadAll Render_LoadAll(): calls the Load entry of every render module (arrows,
+@Render_LoadAll congrats, board, mice, fonts, front end, halo, hatch, help, holes, cats, level
+@Render_LoadAll select, ...), once at start-up.
+F_10960 Render_FreeAll
+@Render_FreeAll Render_FreeAll(): calls the Free entry of every render module, at exit.

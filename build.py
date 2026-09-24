@@ -4,6 +4,8 @@
   python build.py                  -> out/CHUCHU.TOS + out/CHUCHU.LNK
   python build.py -D SKIP_INTRO    -> same, with a conditional-assembly option
   python build.py --check          -> build, then compare with the originals
+  python build.py --reforged       -> version de reference : -D REFORGED + assets de mods/reforged
+  python build.py --overlay DIR    -> les fichiers de DIR remplacent ceux de assets/
 
 Needs vasmm68k_mot (vasm, Motorola syntax) in the PATH, Python 3 and Pillow.
 The executable is written unpacked (Pack-Ice is not needed to run it)."""
@@ -20,8 +22,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('-D', action='append', default=[], help='define a symbol (e.g. SKIP_INTRO)')
     ap.add_argument('--check', action='store_true', help='compare output with the original files')
+    ap.add_argument('--overlay', action='append', default=[], help='asset folder overriding assets/')
+    ap.add_argument('--reforged', action='store_true', help='-D REFORGED + --overlay mods/reforged')
     ap.add_argument('--vasm', default=os.environ.get('VASM', 'vasmm68k_mot'))
     a = ap.parse_args()
+    if a.reforged:
+        a.D.append('REFORGED')
+        a.overlay.append(os.path.join(ROOT, 'mods', 'reforged'))
 
     out = os.path.join(ROOT, 'out')
     tmp = os.path.join(ROOT, 'out', 'tmp')
@@ -49,7 +56,17 @@ def main():
     for e in entries:             # original file list, used for names/order
         blob = d[e['offset']:e['offset'] + e['size']]
         open(os.path.join(ref, e['name']), 'wb').write(unice(blob)[0] if e['packed'] else blob)
-    A.import_all(os.path.join(ROOT, 'assets'), ref, files)
+    src_assets = os.path.join(ROOT, 'assets')
+    if a.overlay:                 # merged view: assets/ then each overlay on top
+        merged = os.path.join(tmp, 'assets')
+        shutil.copytree(src_assets, merged)
+        for ov in a.overlay:
+            for f in os.listdir(ov):
+                if not f.startswith('.'):
+                    shutil.copy(os.path.join(ov, f), os.path.join(merged, f))
+        src_assets = merged
+        print('assets : overlay ' + ', '.join(os.path.relpath(o, ROOT) for o in a.overlay))
+    A.import_all(src_assets, ref, files)
     changed, size = L.build(orig_lnk, files, os.path.join(out, 'CHUCHU.LNK'))
     print('data   : out/CHUCHU.LNK (%d bytes), %d modified file(s) %s' % (size, len(changed), changed))
 

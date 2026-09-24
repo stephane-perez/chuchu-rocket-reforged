@@ -1,0 +1,541 @@
+# ============================================================================
+# Range A : F_00178 .. F_04950  (system layer: GodLib + Pure C runtime helpers)
+# Names follow GodLib (a later version is in ref/GODLIB) in Module_Action style.
+# GodLib modules without an allowed prefix were mapped as follows:
+#   GRAPHIC -> Screen_Gfx*, SPRITE -> Screen_Sprite*, FADE -> Video_Fade*,
+#   LINKFILE -> File_Link*, BASE sTagString -> Str_Tag*.
+# ============================================================================
+
+# ---- AUDIO MIXER (GodLib AUDIO/AMIXER.C) : 2 software voices mixed into the DMA ring buffer ----
+F_00178 AudioMixer_Init
+@AudioMixer_Init AudioMixer_Init() : GodLib AudioMixer_Init. Sets gAudioMixerDmaHw if the machine has DMA sound (STE/MegaSTE/TT/Falcon),
+@AudioMixer_Init allocates the 4 KB silence buffer and the 10 KB mix ring buffer in ST-RAM, builds the 64 KB volume table
+@AudioMixer_Init (entry [vol][sample] = signed sample * vol / 256) and points both voices at the silence buffer.
+@AudioMixer_Init Voice layout (16 bytes): +0 pStart, +4 pCurrent, +8 length, +d volume (set to $ff, unused by the mixer), +e pan (0 = left .. 255 = right), +f active flag.
+F_00252 AudioMixer_DeInit
+@AudioMixer_DeInit AudioMixer_DeInit() : GodLib AudioMixer_DeInit. Stops the mixer, silences both voices, frees silence and mix buffers.
+F_00294 AudioMixer_Enable
+@AudioMixer_Enable AudioMixer_Enable() : GodLib AudioMixer_Enable. If DMA hardware is present: adds the mixer VBL routine (L_01cca),
+@AudioMixer_Enable resets both voices, then starts a looping 8 KB, 8-bit stereo, 50 kHz DMA sound on the ring buffer.
+F_00318 AudioMixer_Disable
+@AudioMixer_Disable AudioMixer_Disable() : GodLib AudioMixer_Disable. If enabled: stops DMA playback ($ffff8901) and removes the mixer VBL routine.
+F_00342 AudioMixer_PlaySample
+@AudioMixer_PlaySample d0 = AudioMixer_PlaySample(a0 = sAudioDmaSound*, d0 = pan) : GodLib AudioMixer_PlaySample.
+@AudioMixer_PlaySample Starts the sample on the first free voice. Returns 1 if a voice was free, 0 otherwise.
+F_00388 AudioMixer_PlaySampleDirect
+@AudioMixer_PlaySampleDirect d0 = AudioMixer_PlaySampleDirect(a0 = sAudioDmaSound*, d0 = pan) : GodLib AudioMixer_PlaySampleDirect.
+@AudioMixer_PlaySampleDirect Uses a free voice, or steals the voice with the fewest bytes left to play. Always returns 1.
+F_00402 AudioMixer_CanPlayNewSpl
+@AudioMixer_CanPlayNewSpl d0 = AudioMixer_CanPlayNewSpl() : GodLib AudioMixer_CanPlayNewSpl. 1 if at least one voice is free.
+F_01da4 AudioMixer_MixChunk
+@AudioMixer_MixChunk AudioMixer_MixChunk(d0 = bytes, a0/a1 = voice 0/1 read pointers, a3/a5 = volume rows, a2 = destination) :
+@AudioMixer_MixChunk inner mixing loop called by the mixer VBL routine (L_01cca). Adds the two voices through the volume
+@AudioMixer_MixChunk table and writes each mixed byte pair 4 times (8 bytes per source byte) into the DMA ring buffer.
+F_01e3c AudioMixer_AdvanceVoices
+@AudioMixer_AdvanceVoices AudioMixer_AdvanceVoices(d0 = bytes mixed) : moves each active voice forward by d0/8 source bytes and
+@AudioMixer_AdvanceVoices frees the voice (points it back at silence) once it has passed its end.
+B_214e0 gAudioMixerVoices
+B_1b9a2 gAudioMixerDmaHw
+D_196ba gpAudioMixerBuffer
+D_196be gpAudioMixerSilence
+D_196c2 gpAudioMixerVolumeTable
+D_196c6 gAudioMixerBufferOffset
+D_196ca gAudioMixerLockFlag
+D_196cb gAudioMixerEnableFlag
+
+# ---- AUDIO (GodLib AUDIO/AUDIO.C, AUDIO_S.S) : YM2149, keyclick, DMA sound ----
+F_00426 Audio_Init
+@Audio_Init Audio_Init() : GodLib Audio_Init. Saves the YM registers, saves the DMA sound registers (STE or Falcon layout),
+@Audio_Init remembers the keyclick and internal speaker states, then turns keyclick off, speaker on and silences the YM.
+F_00496 Audio_DeInit
+@Audio_DeInit Audio_DeInit() : GodLib Audio_DeInit. Restores keyclick, internal speaker, DMA sound registers and YM registers.
+F_004e6 Audio_GetKeyClickState
+@Audio_GetKeyClickState d0 = Audio_GetKeyClickState() : GodLib Audio_GetKeyClickState. Bit 0 of the system variable conterm ($484).
+F_004f6 Audio_SetKeyClickState
+@Audio_SetKeyClickState Audio_SetKeyClickState(d0 = on/off) : GodLib Audio_SetKeyClickState. Writes bit 0 of conterm ($484).
+F_00508 Audio_GetSpeakerState
+@Audio_GetSpeakerState d0 = Audio_GetSpeakerState() : GodLib Audio_GetInternalSpeakerState. Reads YM port A (register 14) bit 6.
+F_0051e Audio_SetSpeakerState
+@Audio_SetSpeakerState Audio_SetSpeakerState(d0 = state) : GodLib Audio_SetInternalSpeakerState. Writes YM port A (register 14) bit 6.
+F_0053c Audio_DmaPlaySound
+@Audio_DmaPlaySound Audio_DmaPlaySound(a0 = sAudioDmaSound*) : GodLib Audio_DmaPlaySound. Programs the STE/Falcon DMA sound
+@Audio_DmaPlaySound start/end addresses and mode, then starts playback (looping if requested). Keeps a copy in gAudioCurrentDmaSound.
+@Audio_DmaPlaySound sAudioDmaSound (12 bytes): +0 pSound, +4 length, +8 frequency (0..3), +9 bits (0 = 8 bit), +a loop flag, +b stereo flag.
+F_01ec2 Audio_SaveYM
+@Audio_SaveYM Audio_SaveYM() : GodLib Audio_SaveYM. Copies the 16 YM2149 registers into gAudioSavedRegs (with interrupts off).
+F_01ee8 Audio_RestoreYM
+@Audio_RestoreYM Audio_RestoreYM() : GodLib Audio_RestoreYM. Writes back the 16 YM2149 registers saved by Audio_SaveYM.
+F_01f12 Audio_SaveDmaSte
+@Audio_SaveDmaSte Audio_SaveDmaSte() : GodLib Audio_SaveDmaSte. Saves the STE DMA control and mode registers ($8901, $8921).
+F_01f2e Audio_RestoreDmaSte
+@Audio_RestoreDmaSte Audio_RestoreDmaSte() : GodLib Audio_RestoreDmaSte. Restores the STE DMA control and mode registers.
+F_01f4a Audio_SaveDmaFalcon
+@Audio_SaveDmaFalcon Audio_SaveDmaFalcon() : GodLib Audio_SaveDmaFalcon. Saves the Falcon DMA sound / crossbar / codec registers.
+F_01f9e Audio_RestoreDmaFalcon
+@Audio_RestoreDmaFalcon Audio_RestoreDmaFalcon() : GodLib Audio_RestoreDmaFalcon. Restores the Falcon registers saved by Audio_SaveDmaFalcon.
+B_1b9a4 gAudioDmaHw
+B_1b9a6 gAudioSavedKeyClick
+B_1b9a7 gAudioSavedSpeaker
+B_1b9a8 gAudioCurrentDmaSound
+B_21570 gAudioSavedRegs
+D_196cc gAudioDmaPlayingFlag
+
+# ---- STRING / TAG TABLE (GodLib BASE.C) ----
+F_005fc Str_TagGetpString
+@Str_TagGetpString a0 = Str_TagGetpString(d0 = id, a0 = table, d1 = count) : GodLib sTagString_GetpString.
+@Str_TagGetpString Searches a table of {U32 id; char *string} pairs; returns the string of the matching id, or 0.
+
+# ---- COOKIE JAR (GodLib COOKIE/COOKIE.C) ----
+F_00616 Cookie_JarExists
+@Cookie_JarExists d0 = Cookie_JarExists() : GodLib CookieJar_Exists. 1 if the cookie jar pointer _p_cookies ($5a0) is not null.
+F_00628 Cookie_Exists
+@Cookie_Exists d0 = Cookie_Exists(d0 = cookie id) : GodLib CookieJar_CookieExists. 1 if the cookie is in the jar.
+F_0063a Cookie_GetpCookie
+@Cookie_GetpCookie a0 = Cookie_GetpCookie(d0 = cookie id) : GodLib CookieJar_GetpCookie. Address of the {id, value} entry, or 0.
+F_00656 Cookie_GetValue
+@Cookie_GetValue d0 = Cookie_GetValue(d0 = cookie id) : GodLib CookieJar_GetCookieValue. Value of the cookie, or 0 if absent.
+
+# ---- FADE / SPRITE / GRAPHIC helpers (GodLib FADE, SPRITE, GRAPHIC) ----
+F_00668 Video_FadePalSTE
+@Video_FadePalSTE Video_FadePalSTE(a0 = dest pal, a1 = source pal, stack = target pal, d0 = colour count, d1 = pos 0..256) :
+@Video_FadePalSTE GodLib Fade_PalSTE. For each colour, interpolates every 4-bit STE component from source to target
+@Video_FadePalSTE (dest = src + (target - src) * pos / 256) using the STE<->linear conversion tables at VideoFadeSteToLinear.
+D_1960c VideoFadeSteToLinear
+F_00798 Screen_SpriteRelocate
+@Screen_SpriteRelocate Screen_SpriteRelocate(a0 = sSprite*) : GodLib Sprite_Relocate. Turns the gfx (+0) and mask (+4) offsets into addresses.
+F_007a2 Screen_SpriteBlockRelocate
+@Screen_SpriteBlockRelocate Screen_SpriteBlockRelocate(a0 = sprite block) : GodLib Sprite_BlockRelocate. Block = {U32 id; U16 version;
+@Screen_SpriteBlockRelocate U16 count; sSprite *sprites[count]}. Relocates the sprite pointer table, then every sprite. Used after loading .BSB files.
+F_008d0 Screen_GfxInit
+@Screen_GfxInit Screen_GfxInit() : GodLib Graphic_Init. Fills the 4-plane entries of the graphic function tables gScreenGfxFuncs
+@Screen_GfxInit (normal and clipped, $24 bytes per colour mode) with the blitter routines if a blitter is present, else the CPU routines.
+F_009b0 Screen_GfxDeInit
+@Screen_GfxDeInit Screen_GfxDeInit() : GodLib Graphic_DeInit. Empty in this build.
+F_009b2 Screen_CanvasInit
+@Screen_CanvasInit Screen_CanvasInit(a0 = canvas, d0 = colour mode, d1 = width, d2 = height) : GodLib GraphicCanvas_Init.
+@Screen_CanvasInit Stores mode/width/height (+4/+6/+8), builds the line offset table at +$14 (height capped to 1024)
+@Screen_CanvasInit and points +$c / +$10 at the normal / clipped function tables for that colour mode.
+B_1b9b4 gScreenGfxFuncs
+F_01ff2 Screen_Gfx4BP_BlitClip
+@Screen_Gfx4BP_BlitClip Screen_Gfx4BP_BlitClip(a0 = canvas, a1 = dest pos, a2 = source rect, ...) : GodLib Graphic_4BP_Blit_Clip.
+@Screen_Gfx4BP_BlitClip 4-plane CPU blit with clipping; the block also contains the other CPU drawing routines
+@Screen_Gfx4BP_BlitClip (L_02072 blit, box, pixel, sprite...) whose addresses Screen_GfxInit stores. The entry itself is never called.
+F_02c86 Screen_Gfx4BP_BlitClipBlt
+@Screen_Gfx4BP_BlitClipBlt Screen_Gfx4BP_BlitClipBlt(a0 = canvas, a1 = dest pos, a2 = source rect, ...) : GodLib Graphic_4BP_Blit_Clip_BLT.
+@Screen_Gfx4BP_BlitClipBlt Blitter version of the clipped blit; the block also holds the blitter drawing routines (L_02d06...)
+@Screen_Gfx4BP_BlitClipBlt used by Screen_GfxInit on machines with a blitter. The entry itself is never called.
+
+# ---- FILE (GodLib FILE/FILE.C) : thin GEMDOS wrappers ----
+F_007e8 File_Open
+@File_Open d0 = File_Open(a0 = file name) : GodLib File_Open. GEMDOS Fopen in mode 2 (read/write). Returns handle or negative error.
+F_007f2 File_Create
+@File_Create d0 = File_Create(a0 = file name) : GodLib File_Create. GEMDOS Fcreate with attribute 0.
+F_007fc File_Read
+@File_Read d0 = File_Read(d0 = handle, d1 = bytes, a0 = buffer) : GodLib File_Read. GEMDOS Fread; returns bytes read.
+F_00804 File_Write
+@File_Write d0 = File_Write(d0 = handle, d1 = bytes, a0 = buffer) : GodLib File_Write. GEMDOS Fwrite; returns bytes written.
+F_0080c File_SeekFromStart
+@File_SeekFromStart d0 = File_SeekFromStart(d0 = handle, d1 = offset) : GodLib File_SeekFromStart. GEMDOS Fseek mode 0.
+F_00820 File_SeekFromEnd
+@File_SeekFromEnd d0 = File_SeekFromEnd(d0 = handle, d1 = offset) : GodLib File_SeekFromEnd. GEMDOS Fseek mode 2.
+F_00834 File_Close
+@File_Close d0 = File_Close(d0 = handle) : GodLib File_Close. GEMDOS Fclose.
+F_0083e File_GetSize
+@File_GetSize d0 = File_GetSize(a0 = file name) : GodLib File_GetSize. Opens the file, seeks to its end, closes it; returns the size (or the error).
+F_00868 File_LoadAt
+@File_LoadAt d0 = File_LoadAt(a0 = file name, a1 = buffer) : GodLib File_LoadAt. Reads the whole file into the buffer; 1 on success.
+F_008a2 File_Save
+@File_Save d0 = File_Save(a0 = file name, a1 = buffer, d0 = bytes) : GodLib File_Save. Creates the file and writes the buffer; 1 on success.
+
+# ---- LINK FILE (GodLib LINKFILE/LINKFILE.C) : packed archive read from disk on demand ----
+F_00c5e File_LinkInit
+@File_LinkInit a0 = File_LinkInit(a0 = archive name) : GodLib LinkFile_Init. Opens the archive, reads its 26-byte header, loads the
+@File_LinkInit whole directory (FAT) into memory, relocates it and keeps the open file handle at +$14. Returns 0 on failure.
+@File_LinkInit Folder: +0 file count, +2 folder count, +4 name, +8 files (20 bytes each: +0 packed size, +4 unpacked size, +8 offset, +$10 name), +c sub-folders (16 bytes each).
+F_00cd8 File_LinkDeInit
+@File_LinkDeInit File_LinkDeInit(a0 = link file) : GodLib LinkFile_DeInit. Closes the archive file and frees the directory.
+F_00cf6 File_LinkFileLoad
+@File_LinkFileLoad a0 = File_LinkFileLoad(a0 = link file, a1 = path, d0 = depack flag, d1 = ST-RAM flag) : GodLib LinkFile_FileLoad.
+@File_LinkFileLoad Allocates a buffer (unpacked size if depacking; ST-RAM if d1), reads the file data from the archive and depacks it
+@File_LinkFileLoad (Ice or Atomik) when asked. Returns the buffer, or 0.
+F_00d74 File_LinkFileLoadAt
+@File_LinkFileLoadAt d0 = File_LinkFileLoadAt(a0 = link file, a1 = path, stack = buffer, d0 = depack flag) : GodLib LinkFile_FileLoadAt.
+@File_LinkFileLoadAt Same as File_LinkFileLoad but into a caller buffer. Returns 1 on success.
+F_00dca File_LinkFileGetSize
+@File_LinkFileGetSize d0 = File_LinkFileGetSize(a0 = link file, a1 = path, d0 = unpacked flag) : GodLib LinkFile_FileGetSize.
+@File_LinkFileGetSize Returns the unpacked (d0 != 0) or packed size of a file in the archive, or 0 if not found.
+F_00df8 File_LinkRelocateFolder
+@File_LinkRelocateFolder File_LinkRelocateFolder(a0 = folder, d0 = base) : GodLib LinkFile_RelocateFolder. Adds base to the folder's
+@File_LinkRelocateFolder pointers and to every file name pointer, recursing into the sub-folders.
+F_00e4e File_LinkRelocate
+@File_LinkRelocate File_LinkRelocate(a0 = link file) : GodLib LinkFile_Relocate. Relocates the root folder pointer (+$16) and the whole tree.
+F_00e64 File_LinkGetpFolder
+@File_LinkGetpFolder a0 = File_LinkGetpFolder(a0 = folder, a1 = name) : GodLib LinkFile_GetpFolder. Sub-folder with that name, or 0.
+F_00ea8 File_LinkGetpFile
+@File_LinkGetpFile a0 = File_LinkGetpFile(a0 = link file, a1 = path) : GodLib LinkFile_GetpFile. Walks the path ('/' or '\' separators,
+@File_LinkGetpFile names upper-cased) through the folders and returns the file entry, or 0.
+
+# ---- IKBD (GodLib IKBD/IKBD.C, IKBD_S.S) : keyboard, mouse, joysticks, STE/Falcon joypads ----
+F_00b54 Ikbd_GetPad0Dir
+@Ikbd_GetPad0Dir d0 = Ikbd_GetPad0Dir() : GodLib IKBD_GetPad0Dir. Directions/fire byte of STE joypad A.
+F_00b5c Ikbd_GetPad0Key
+@Ikbd_GetPad0Key d0 = Ikbd_GetPad0Key() : GodLib IKBD_GetPad0Key. Keypad/button bits of STE joypad A.
+F_00b64 Ikbd_GetPad1Dir
+@Ikbd_GetPad1Dir d0 = Ikbd_GetPad1Dir() : GodLib IKBD_GetPad1Dir. Directions/fire byte of STE joypad B.
+F_00b6c Ikbd_GetPad1Key
+@Ikbd_GetPad1Key d0 = Ikbd_GetPad1Key() : GodLib IKBD_GetPad1Key. Keypad/button bits of STE joypad B.
+F_00b84 Ikbd_GetMouseX
+@Ikbd_GetMouseX d0 = Ikbd_GetMouseX() : GodLib IKBD_GetMouseX. Mouse X accumulated by the IKBD handler.
+F_00b8c Ikbd_SetMouseX
+@Ikbd_SetMouseX Ikbd_SetMouseX(d0 = x) : GodLib IKBD_SetMouseX.
+F_00b94 Ikbd_GetMouseY
+@Ikbd_GetMouseY d0 = Ikbd_GetMouseY() : GodLib IKBD_GetMouseY.
+F_00b9c Ikbd_SetMouseY
+@Ikbd_SetMouseY Ikbd_SetMouseY(d0 = y) : GodLib IKBD_SetMouseY.
+F_00ba4 Ikbd_GetMouseKeys
+@Ikbd_GetMouseKeys d0 = Ikbd_GetMouseKeys() : GodLib IKBD_GetMouseKeys. Bit 0 = right button, bit 1 = left button.
+F_00bac Ikbd_GetJoy0Packet
+@Ikbd_GetJoy0Packet d0 = Ikbd_GetJoy0Packet() : GodLib IKBD_GetJoy0Packet. Last IKBD packet of joystick 0 (bits 0-3 dirs, bit 7 fire).
+F_00bb4 Ikbd_GetJoy1Packet
+@Ikbd_GetJoy1Packet d0 = Ikbd_GetJoy1Packet() : GodLib IKBD_GetJoy1Packet. Last IKBD packet of joystick 1.
+F_00bd8 Ikbd_ClearBuffer
+@Ikbd_ClearBuffer Ikbd_ClearBuffer() : GodLib IKBD_ClearBuffer. Flushes the ACIA and clears the 128-entry key state table.
+F_00bfc Ikbd_EnableTeamTap0
+@Ikbd_EnableTeamTap0 Ikbd_EnableTeamTap0() : GodLib IKBD_EnableTeamTap0. Sets bit 0 of gIkbdTeamTapBits (multitap on pad port A).
+F_00c06 Ikbd_EnableTeamTap1
+@Ikbd_EnableTeamTap1 Ikbd_EnableTeamTap1() : GodLib IKBD_EnableTeamTap1. Sets bit 1 of gIkbdTeamTapBits (multitap on pad port B).
+F_00c10 Ikbd_DisableTeamTap0
+@Ikbd_DisableTeamTap0 Ikbd_DisableTeamTap0() : GodLib IKBD_DisableTeamTap0.
+F_00c1a Ikbd_DisableTeamTap1
+@Ikbd_DisableTeamTap1 Ikbd_DisableTeamTap1() : GodLib IKBD_DisableTeamTap1.
+F_00c24 Ikbd_GetTeamTapPadDir
+@Ikbd_GetTeamTapPadDir d0 = Ikbd_GetTeamTapPadDir(d0 = tap 0/1, d1 = pad 0..3) : GodLib IKBD_GetTeamTapPadDir.
+F_00c40 Ikbd_GetTeamTapPadKey
+@Ikbd_GetTeamTapPadKey d0 = Ikbd_GetTeamTapPadKey(d0 = tap 0/1, d1 = pad 0..3) : GodLib IKBD_GetTeamTapPadKey.
+F_03290 Ikbd_GetHandler
+@Ikbd_GetHandler a0 = Ikbd_GetHandler() : GodLib IKBD_GetHandler. Reads the MFP ACIA interrupt vector ($118).
+F_03296 Ikbd_SetHandler
+@Ikbd_SetHandler Ikbd_SetHandler(a0 = routine) : GodLib IKBD_SetHandler. Writes the ACIA vector ($118) with interrupts off.
+F_032de Ikbd_GetKbdBytesWaiting
+@Ikbd_GetKbdBytesWaiting d0 = Ikbd_GetKbdBytesWaiting() : GodLib IKBD_GetKbdBytesWaiting. Bytes in the 2 KB keyboard ring buffer.
+F_03318 Ikbd_Flush
+@Ikbd_Flush Ikbd_Flush() : GodLib IKBD_Flush. Reads and discards bytes from the keyboard ACIA until its receive flag is clear.
+F_0332c Ikbd_FlushGemdos
+@Ikbd_FlushGemdos Ikbd_FlushGemdos() : GodLib IKBD_FlushGemdos. Empties the GEMDOS console buffer (Cconis / Cnecin loop).
+F_03394 Ikbd_AciaProcess
+@Ikbd_AciaProcess Ikbd_AciaProcess(a0 = ACIA base, a1 = byte handler, a3 = gIkbdState) : part of GodLib IKBD_MainHandler (L_0335a).
+@Ikbd_AciaProcess If the ACIA has an interrupt pending and a received byte, passes it to the handler in d0. The keyboard handler is
+@Ikbd_AciaProcess a small state machine (gIkbdKbdHandler: L_033dc key/packet header, then mouse/joystick/clock packet bytes).
+F_035e0 Ikbd_KbdByteStore
+@Ikbd_KbdByteStore Ikbd_KbdByteStore(d0 = scancode, a3 = gIkbdState) : unreferenced copy of the key byte code of the IKBD handler.
+@Ikbd_KbdByteStore Pushes the byte into the keyboard ring buffer and updates the key state table (bit 7 = release). Dead code.
+F_036b6 Ikbd_ReadPowerpadA
+@Ikbd_ReadPowerpadA Ikbd_ReadPowerpadA() : GodLib IKBD_ReadPowerpadA. Reads STE joypad port A ($ff9200/$ff9202) into Pad0Dir/Pad0Key.
+@Ikbd_ReadPowerpadA Unreferenced in this build (the VBL routine L_03624 is used instead).
+F_0374a Ikbd_ReadPowerpadB
+@Ikbd_ReadPowerpadB Ikbd_ReadPowerpadB() : GodLib IKBD_ReadPowerpadB. Same for joypad port B (Pad1Dir/Pad1Key). Unreferenced.
+F_037e8 Ikbd_ReadPadMatrixA
+@Ikbd_ReadPadMatrixA Ikbd_ReadPadMatrixA(a0 = 4 select masks, a1 = dir byte out, a2 = key word out) : GodLib IKBD_ReadPadMatrixA.
+@Ikbd_ReadPadMatrixA Scans one Jaguar/STE pad on port A through the 4 select lines; called by the pad VBL routine L_03624
+@Ikbd_ReadPadMatrixA (once for a single pad, 4 times when a team tap is enabled).
+F_0387e Ikbd_PadPauseA
+@Ikbd_PadPauseA Ikbd_PadPauseA() : just rts; tiny settle delay used by Ikbd_ReadPadMatrixA after selecting a row (GodLib ".pause").
+F_03880 Ikbd_ReadPadMatrixB
+@Ikbd_ReadPadMatrixB Ikbd_ReadPadMatrixB(a0 = 4 select masks, a1 = dir byte out, a2 = key word out) : GodLib IKBD_ReadPadMatrixB.
+@Ikbd_ReadPadMatrixB Same as Ikbd_ReadPadMatrixA for joypad port B.
+F_03918 Ikbd_PadPauseB
+@Ikbd_PadPauseB Ikbd_PadPauseB() : just rts; settle delay used by Ikbd_ReadPadMatrixB.
+B_1bbb8 gIkbdMidiHead
+B_1bbba gIkbdMidiTail
+B_1bbbc gIkbdKbdHead
+B_1bbbe gIkbdKbdTail
+B_1bbc2 gIkbdJoy0Packet
+B_1bbc3 gIkbdJoy1Packet
+B_1bbc5 gIkbdMouseKeys
+B_1bbc8 gIkbdMouseX
+B_1bbca gIkbdMouseY
+B_1bbcd gIkbdTeamTapBits
+B_1bbce gIkbdPad0Dir
+B_1bbcf gIkbdPad1Dir
+B_1bbd0 gIkbdPad0Key
+B_1bbd2 gIkbdPad1Key
+B_1bbd4 gIkbdTeamTap0Dirs
+B_1bbd8 gIkbdTeamTap1Dirs
+B_1bbdc gIkbdTeamTap0Keys
+B_1bbe4 gIkbdTeamTap1Keys
+B_1bc6c gIkbdMidiBuffer
+B_1c46c gIkbdKbdBuffer
+B_1cc7c gIkbdOldHandler
+D_19a56 IkbdPacketHandlers
+D_19a7e IkbdJagPadMasksA
+D_19a8e IkbdJagPadMasksB
+D_19a9e gIkbdMidiHandler
+D_19aa2 gIkbdKbdHandler
+
+# ---- MEMORY (GodLib MEMORY/MEMORY.C) ----
+F_00f54 Memory_TrackInit
+@Memory_TrackInit Memory_TrackInit() : GodLib Memory_TrackInit. Clears the allocation statistics and the 2048-entry record table
+@Memory_TrackInit gMemoryTrackRecords ({pointer, size} pairs), then marks tracking as initialised.
+@Memory_TrackInit Stats at gMemoryAllocCount: +0 count, +4 allocated bytes, +8 failed bytes, +c high tide, +10 largest, +14 smallest, +18 init flag.
+F_00f9a Memory_TrackGetFreeRecord
+@Memory_TrackGetFreeRecord a0 = Memory_TrackGetFreeRecord() : GodLib Memory_TrackGetFreeRecord. First empty record, or 0.
+F_00fc2 Memory_TrackAlloc
+@Memory_TrackAlloc Memory_TrackAlloc(a0 = block, d0 = size) : GodLib Memory_TrackAlloc. Updates the statistics (count, total, high tide,
+@Memory_TrackAlloc largest, smallest; or failed bytes if a0 = 0) and stores {block, size} in a free record.
+F_0101e Memory_Alloc
+@Memory_Alloc a0 = Memory_Alloc(d0 = size) : GodLib Memory_Alloc. GEMDOS Mxalloc(size, 2 = any RAM) on TOS > 2.00, else Malloc; tracked.
+F_01058 Memory_ScreenAlloc
+@Memory_ScreenAlloc a0 = Memory_ScreenAlloc(d0 = size) : GodLib Memory_ScreenAlloc. Like Memory_Alloc but Mxalloc mode 0 (ST-RAM only),
+@Memory_ScreenAlloc as needed for screens and DMA sound buffers.
+F_01092 Memory_Calloc
+@Memory_Calloc a0 = Memory_Calloc(d0 = size) : GodLib Memory_Calloc. Memory_Alloc then fills the block with zeros.
+F_010b2 Memory_ScreenCalloc
+@Memory_ScreenCalloc a0 = Memory_ScreenCalloc(d0 = size) : GodLib Memory_ScreenCalloc. Memory_ScreenAlloc then fills with zeros.
+F_010ea Memory_Clear
+@Memory_Clear Memory_Clear(d0 = size, a0 = block) : GodLib Memory_Clear. Byte-by-byte zero fill (does nothing if a0 = 0).
+F_010fc Memory_Copy
+@Memory_Copy Memory_Copy(d0 = size, a0 = source, a1 = dest) : GodLib Memory_Copy. Overlap-safe byte copy (copies backwards when dest > source).
+F_01126 Memory_GetSize
+@Memory_GetSize d0 = Memory_GetSize() : GodLib Memory_GetSize. Returns phystop ($42e), the top of ST-RAM (e.g. to test for less than 2 MB).
+D_19690 gMemoryAllocCount
+D_19694 gMemoryAllocatedSize
+B_1cc80 gMemoryTrackRecords
+
+# ---- PACKER (GodLib PACKER/PACKER.C) + Ice / Atomik depackers ----
+F_01130 Packer_IsPacked
+@Packer_IsPacked d0 = Packer_IsPacked(a0 = data) : GodLib Packer_IsPacked. 1 if the data starts with "ICE!" or "ATM5".
+F_01162 Packer_GetDepackSize
+@Packer_GetDepackSize d0 = Packer_GetDepackSize(a0 = packed data) : GodLib Packer_GetDepackSize. Unpacked size from the Ice (+8) or
+@Packer_GetDepackSize Atomik (+4) header, 0 if not packed.
+F_01186 Packer_Depack
+@Packer_Depack Packer_Depack(a0 = data) : GodLib Packer_Depack. Depacks in place with Ice_Depack or Packer_AtomikDepack depending on the header.
+F_039c0 Ice_ReadLong
+@Ice_ReadLong d0 = Ice_ReadLong(a0 = pointer) : reads a big-endian long byte by byte (unaligned safe) and advances a0. Pack-Ice helper.
+F_039cc Ice_DecodeLoop
+@Ice_DecodeLoop Ice_DecodeLoop() : main Pack-Ice 2.x decoding loop (register based: a5 = packed data read backwards, a6 = output
+@Ice_DecodeLoop written backwards, a4 = output start, d7 = bit buffer). Copies literal runs, then decodes back-references (L_03a14) until done.
+F_039f8 Ice_GetBit
+@Ice_GetBit Ice_GetBit() : shifts the next bit of the Ice bit stream into the X/C flags, refilling d7 from -(a5) when empty.
+F_03a02 Ice_GetBits
+@Ice_GetBits d1 = Ice_GetBits(d0 = count - 1) : reads d0+1 bits from the Ice bit stream into d1.
+F_03ab8 Packer_AtomikDepack
+@Packer_AtomikDepack Packer_AtomikDepack(a0 = data) : Atomik 3.5 ("ATM5") in-place depacker, used by Packer_Depack. Does nothing if the
+@Packer_AtomikDepack header is not "ATM5".
+F_03b5c Packer_AtomikGetBits
+@Packer_AtomikGetBits d5 = Packer_AtomikGetBits(d6 = count - 1) : reads bits from the Atomik bit stream (d7 buffer, refilled from -(a6)).
+F_03c64 Packer_AtomikCopyBack
+@Packer_AtomikCopyBack Packer_AtomikCopyBack(d0 = size, a5 = source, a6 = dest) : copies (size/16 + 1) blocks of 16 bytes; used at the end of
+@Packer_AtomikCopyBack Packer_AtomikDepack to move the depacked data into place.
+
+# ---- SCREEN GRAB (GodLib SCRNGRAB/SCRNGRAB.C) : debug screenshot on a key ----
+F_011ae ScreenGrab_Init
+@ScreenGrab_Init ScreenGrab_Init() : GodLib ScreenGrab_Init. Clears the state, sets the grab key to $42 (F8) and adds ScreenGrab_Vbl to the VBL list.
+F_011d6 ScreenGrab_DeInit
+@ScreenGrab_DeInit ScreenGrab_DeInit() : GodLib ScreenGrab_DeInit. Removes ScreenGrab_Vbl from the VBL list.
+F_011e4 ScreenGrab_Enable
+@ScreenGrab_Enable ScreenGrab_Enable() : GodLib ScreenGrab_Enable. Clears the key state and enables grabbing.
+F_011f4 ScreenGrab_Disable
+@ScreenGrab_Disable ScreenGrab_Disable() : GodLib ScreenGrab_Disable. Note: sets the enable flag to 1, the same bug as in GodLib, so it does not disable.
+F_011fe ScreenGrab_SetDirectory
+@ScreenGrab_SetDirectory ScreenGrab_SetDirectory(a0 = path) : GodLib ScreenGrab_SetDirectory. Copies the output directory string.
+F_01218 ScreenGrab_Update
+@ScreenGrab_Update ScreenGrab_Update() : GodLib ScreenGrab_Update, called from ScreenGrab_Vbl. On a new press of the grab key, writes
+@ScreenGrab_Update "<dir>GRABnnnn.PI1" (Degas: resolution word + ST palette, then 32000 bytes of the physical screen) and bumps the counter.
+B_20c80 gScreenGrabEnable
+B_20c82 gScreenGrabKeyState
+B_20c86 gScreenGrabDirectory
+D_196aa ScreenGrabFileFormat
+D_19bae gScreenGrabLock
+
+# ---- SYSTEM (GodLib SYSTEM/SYSTEM.C, SYSTEM_S.S) : machine detection, vectors, IPL, caches ----
+F_012ac System_Init
+@System_Init System_Init() : GodLib System_Init. Detects machine, CPU, FPU, DSP, video, monitor, TOS version and blitter
+@System_Init (Calc then Set for each), saves the exception vectors, initialises the MFP (Mfp_Init) and runs System_Calibrate.
+F_01326 System_DeInit
+@System_DeInit System_DeInit() : GodLib System_DeInit. Restores the MFP registers and the saved exception vectors.
+F_0133a System_SetMCH
+@System_SetMCH System_SetMCH(d0 = machine) : GodLib System_SetMCH.
+F_01342 System_GetMCH
+@System_GetMCH d0 = System_GetMCH() : GodLib System_GetMCH. 1 ST, 2 STE, 3 ST Book, 4 MegaSTE, 5 TT, 6 Falcon.
+F_0134a System_CalcMCH
+@System_CalcMCH d0 = System_CalcMCH() : GodLib System_CalcMCH. Decodes the _MCH cookie (falls back to _VDO); ST if there is no cookie jar.
+F_013f8 System_SetCPU
+@System_SetCPU System_SetCPU(d0 = cpu) : GodLib System_SetCPU.
+F_01400 System_CalcCPU
+@System_CalcCPU d0 = System_CalcCPU() : GodLib System_CalcCPU. From the _CPU cookie: 1 = 68000, 2 = 010, 3 = 020, 4 = 030, 5 = 040, 6 = 060.
+F_0146a System_SetFPU
+@System_SetFPU System_SetFPU(d0 = fpu) : GodLib System_SetFPU.
+F_01472 System_CalcFPU
+@System_CalcFPU d0 = System_CalcFPU() : GodLib System_CalcFPU. Decodes the _FPU cookie (0 = none).
+F_014e2 System_SetDSP
+@System_SetDSP System_SetDSP(d0 = dsp) : GodLib System_SetDSP.
+F_014ea System_CalcDSP
+@System_CalcDSP d0 = System_CalcDSP() : GodLib System_CalcDSP. 2 if the _SND cookie has the DSP bit (bit 4), else 0.
+F_0151e System_SetVDO
+@System_SetVDO System_SetVDO(d0 = video) : GodLib System_SetVDO.
+F_01526 System_GetVDO
+@System_GetVDO d0 = System_GetVDO() : GodLib System_GetVDO. Video hardware: 1 ST shifter, 2 STE, 3 TT, 4 Falcon Videl.
+F_0152e System_CalcVDO
+@System_CalcVDO d0 = System_CalcVDO() : GodLib System_CalcVDO. Decodes the high word of the _VDO cookie.
+F_01578 System_SetMON
+@System_SetMON System_SetMON(d0 = monitor) : GodLib System_SetMON.
+F_01580 System_GetMON
+@System_GetMON d0 = System_GetMON() : GodLib System_GetMON. Monitor type (2 = VGA on Falcon, used by Video_SetMode).
+F_01588 System_CalcMON
+@System_CalcMON d0 = System_CalcMON() : GodLib System_CalcMON. ST/STE: mono if resolution register is high; Falcon: reads the
+@System_CalcMON monitor type bits of $ffff8006.
+F_015d4 System_SetBLT
+@System_SetBLT System_SetBLT(d0 = blitter) : GodLib System_SetBLT.
+F_015dc System_GetBLT
+@System_GetBLT d0 = System_GetBLT() : GodLib System_GetBLT. 1 if a blitter is present (selects blitter routines in Screen_GfxInit).
+F_015e4 System_CalcBLT
+@System_CalcBLT d0 = System_CalcBLT() : GodLib System_CalcBLT. On TOS 1.02+, XBIOS Blitmode(-1) bit 1 = blitter present.
+F_0160c System_Calibrate
+@System_Calibrate System_Calibrate() : GodLib System_Calibrate. With a counting HBL routine installed, waits 128 VBLs and measures the
+@System_Calibrate 200 Hz timer: stores the refresh rate (16.16 fixed point, Hz) and the HBL rate in gSystemRefreshRate.
+F_016c8 System_GetRefreshRate
+@System_GetRefreshRate a0 = System_GetRefreshRate() : GodLib System_GetRefreshRate. Address of the 16.16 refresh rate (word +0 = Hz).
+F_016d0 System_DataCacheDisable
+@System_DataCacheDisable System_DataCacheDisable() : GodLib System_DataCacheDisable. 68030: clears the data cache bit of CACR;
+@System_DataCacheDisable MegaSTE: forces 8 MHz without cache ($ffff8e21).
+F_016f6 System_CalcTosVersion
+@System_CalcTosVersion d0 = System_CalcTosVersion() : GodLib System_CalcTosVersion. Reads the TOS version word at address 2 (ROM header).
+F_01700 System_SetTosVersion
+@System_SetTosVersion System_SetTosVersion(d0 = version) : GodLib System_SetTosVersion.
+F_01708 System_GetTosVersion
+@System_GetTosVersion d0 = System_GetTosVersion() : GodLib System_GetTosVersion. e.g. $0206 for TOS 2.06.
+F_03fa6 System_SaveVectors
+@System_SaveVectors System_SaveVectors(a0 = buffer) : GodLib System_SaveVectors. Copies the 62 exception vectors $008..$0FF with interrupts off.
+F_04026 System_RestoreVectors
+@System_RestoreVectors System_RestoreVectors(a0 = buffer) : GodLib System_RestoreVectors. Writes back the vectors saved by System_SaveVectors.
+F_040b2 System_SetIML
+@System_SetIML System_SetIML(d0 = level 0..7) : GodLib System_SetIML. Sets the CPU interrupt mask (SR = $2000 | level<<8).
+F_040c0 System_GetIML
+@System_GetIML d0 = System_GetIML() : GodLib System_GetIML. Current CPU interrupt mask level.
+F_040ca System_SetDataCache030
+@System_SetDataCache030 System_SetDataCache030(d0 = on/off) : GodLib System_SetDataCache030. Sets or clears the data cache enable bit (8) of the 68030 CACR.
+B_20d86 gSystemRefreshRate
+B_20d8e gSystemMCH
+B_20d90 gSystemCPU
+B_20d92 gSystemFPU
+B_20d94 gSystemDSP
+B_20d96 gSystemVDO
+B_20d98 gSystemMON
+B_20d9a gSystemBLT
+B_20d9c gSystemTosVersion
+B_20d9e gSystemSavedVectors
+
+# ---- MFP (GodLib MFP/MFP.C, MFP_S.S) : 68901 registers, timers, 200 Hz clock hook ----
+F_01710 Mfp_Init
+@Mfp_Init Mfp_Init() : GodLib Mfp_Init. Saves the MFP state into gMfpSavedRegs and installs the standard Timer C (200 Hz clock) routine.
+F_01724 Mfp_DeInit
+@Mfp_DeInit Mfp_DeInit() : GodLib Mfp_DeInit. Restores the MFP registers and vectors saved by Mfp_Init.
+F_03c9e Mfp_SaveRegisters
+@Mfp_SaveRegisters Mfp_SaveRegisters(a0 = buffer) : GodLib Mfp_SaveRegisters. Saves the 16 MFP vectors ($100-$13f) and the MFP registers.
+F_03d18 Mfp_RestoreRegisters
+@Mfp_RestoreRegisters Mfp_RestoreRegisters(a0 = buffer) : GodLib Mfp_RestoreRegisters. Stops timers A/B/C-D, then restores vectors and registers.
+F_03d9e Mfp_InstallTimerA
+@Mfp_InstallTimerA Mfp_InstallTimerA(a0 = sMfpTimer*) : GodLib Mfp_InstallTimerA. sMfpTimer: +0 routine, +4 freq, +6 mode, +7 data. Unreferenced.
+F_03dd4 Mfp_InstallTimerB
+@Mfp_InstallTimerB Mfp_InstallTimerB(a0 = sMfpTimer*) : GodLib Mfp_InstallTimerB. Sets vector $120, data and control, enables the interrupt. Unreferenced.
+F_03e0a Mfp_InstallTimerC
+@Mfp_InstallTimerC Mfp_InstallTimerC(a0 = sMfpTimer*) : GodLib Mfp_InstallTimerC. Vector $114. Unreferenced.
+F_03e46 Mfp_InstallTimerD
+@Mfp_InstallTimerD Mfp_InstallTimerD(a0 = sMfpTimer*) : GodLib Mfp_InstallTimerD. Vector $110. Unreferenced.
+F_03f50 Mfp_HookDisableTimerC
+@Mfp_HookDisableTimerC Mfp_HookDisableTimerC() : GodLib Mfp_HookDisableTimerC. Stops calling the routine hooked by Mfp_HookIntoTimerC.
+B_20e96 gMfpSavedRegs
+D_19bb8 gMfpHookCounter
+D_19bba gMfpHookRate
+D_19bbc gMfpHookEnable
+D_19bbd gMfpHookLock
+
+# ---- VBL (GodLib VBL/VBL.C, VBL_S.S) ----
+F_01852 Vbl_Init
+@Vbl_Init Vbl_Init() : GodLib Vbl_Init. Saves the old VBL vector, clears the call list and installs the VBL handler that matches
+@Vbl_Init the machine (ST L_0410e, STE/MegaSTE L_04176, TT L_041f8, Falcon L_04260). Each handler updates video registers, then runs the calls.
+F_018cc Vbl_DeInit
+@Vbl_DeInit Vbl_DeInit() : GodLib Vbl_DeInit. Puts back the original VBL vector.
+F_018da Vbl_AddCall
+@Vbl_AddCall d0 = Vbl_AddCall(a0 = routine) : GodLib Vbl_AddCall. Appends a routine to the list called every VBL (max 64). 1 on success.
+F_018fe Vbl_RemoveCall
+@Vbl_RemoveCall d0 = Vbl_RemoveCall(a0 = routine) : GodLib Vbl_RemoveCall. Removes the routine from the VBL list; 1 if it was found.
+F_040fa Vbl_GetHandler
+@Vbl_GetHandler a0 = Vbl_GetHandler() : GodLib Vbl_GetHandler. Reads the VBL vector ($70).
+F_04100 Vbl_SetHandler
+@Vbl_SetHandler Vbl_SetHandler(a0 = routine) : GodLib Vbl_SetHandler. Writes the VBL vector ($70) with interrupts off.
+F_042dc Vbl_GetCounter
+@Vbl_GetCounter d0 = Vbl_GetCounter() : GodLib Vbl_GetCounter. Returns the system frame counter _frclock ($466).
+B_20f06 gVblOldHandler
+B_20f0a gVblLockFlag
+B_20f0b gVblTimerBScanLine
+B_20f0c gVblHbiCounterStart
+B_20f0e gVblHbiCounter
+B_20f10 gVblCallCount
+B_20f12 gVblHbiFunc
+B_20f16 gVblTimerBFunc
+B_20f1a gVblCalls
+
+# ---- VIDEO (GodLib VIDEO/VIDEO.C, VIDEO_S.S) : resolution, physic screen, palettes ----
+F_01946 Video_Init
+@Video_Init Video_Init() : GodLib Video_Init. Saves the current video state into gVideoSavedRegs (registers of ST, STE, TT or Falcon
+@Video_Init depending on System_GetVDO) plus the ST palette (+$80) and, on Falcon, the 256-colour palette (+$a0).
+F_019cc Video_DeInit
+@Video_DeInit Video_DeInit() : GodLib Video_DeInit. Restores the video registers and palettes saved by Video_Init.
+F_01a52 Video_SetMode
+@Video_SetMode d0 = Video_SetMode(d0 = width, d1 = height, d2 = mode, stack.w = canvas width, stack.b = NTSC flag, stack.b = wide flag) :
+@Video_SetMode GodLib Video_SetMode. Mode 0 = 2 colours, 1 = 4 colours, 2 = 16 colours (ST low). Programs the shifter (ST/STE/TT) or
+@Video_SetMode calls the Falcon ST-low setters (VGA, 50 Hz or 60 Hz). Returns 1 if the mode was set.
+F_01cb4 Video_SetPhysic
+@Video_SetPhysic Video_SetPhysic(a0 = screen) : GodLib Video_SetPhysic. Stores the screen address in gVideo; the VBL handler writes it
+@Video_SetPhysic to the shifter at the next VBL (gVideoUpdatePhysic cleared = update pending).
+F_01cc2 Video_GetpPhysic
+@Video_GetpPhysic a0 = Video_GetpPhysic() : GodLib Video_GetpPhysic. Screen address last given to Video_SetPhysic.
+@Video_GetpPhysic (The code right after it, L_01cca, is the audio mixer VBL routine AudioMixer_Vbl.)
+F_04328 Video_RestoreRegsST
+@Video_RestoreRegsST Video_RestoreRegsST(a0 = buffer) : GodLib Video_RestoreRegsST. Restores screen base, resolution, sync, then XBIOS Setscreen.
+F_043c0 Video_RestoreRegsSTE
+@Video_RestoreRegsSTE Video_RestoreRegsSTE(a0 = buffer) : GodLib Video_RestoreRegsSTE. Also restores fine scroll and line width.
+F_0441a Video_SaveRegsTT
+@Video_SaveRegsTT Video_SaveRegsTT(a0 = buffer) : GodLib Video_SaveRegsTT. Saves TT shifter registers and _v_bas_ad.
+F_0444a Video_RestoreRegsTT
+@Video_RestoreRegsTT Video_RestoreRegsTT(a0 = buffer) : GodLib Video_RestoreRegsTT.
+F_044ee Video_RestoreRegsFalcon
+@Video_RestoreRegsFalcon Video_RestoreRegsFalcon(a0 = buffer) : GodLib Video_RestoreRegsFalcon. Restores all Videl registers saved by
+@Video_RestoreRegsFalcon Video_SaveRegsFalcon, waiting for VBLs around the change.
+F_04566 Video_GetPalST
+@Video_GetPalST Video_GetPalST(a0 = 16-word buffer) : GodLib Video_GetPalST. Copies the 16 ST colour registers ($ffff8240).
+F_04580 Video_SetPalST
+@Video_SetPalST Video_SetPalST(a0 = 16-word palette) : GodLib Video_SetPalST. Writes the 16 ST colour registers immediately.
+F_0459a Video_GetPalTT
+@Video_GetPalTT Video_GetPalTT(a0 = buffer) : GodLib Video_GetPalTT. Copies the 256 TT colour registers ($ffff8400). Unreferenced.
+F_045b6 Video_SetPalTT
+@Video_SetPalTT Video_SetPalTT(a0 = palette) : GodLib Video_SetPalTT. Unreferenced.
+F_045d2 Video_GetPalFalcon
+@Video_GetPalFalcon Video_GetPalFalcon(a0 = buffer) : GodLib Video_GetPalFalcon. Copies the 256 Falcon colour longs ($ffff9800).
+F_045ee Video_SetPalFalcon
+@Video_SetPalFalcon Video_SetPalFalcon(a0 = palette) : GodLib Video_SetPalFalcon. Writes the 256 Falcon colour longs.
+F_0460a Video_UpdateRegsST
+@Video_UpdateRegsST Video_UpdateRegsST() : GodLib Video_UpdateRegsST, called from the ST VBL handler. Writes the pending physic screen
+@Video_UpdateRegsST address and the pending ST palette (flags in gVideo +$20 / +$21, test-and-set so each is done once).
+F_04636 Video_UpdateRegsSTE
+@Video_UpdateRegsSTE Video_UpdateRegsSTE() : GodLib Video_UpdateRegsSTE. Same for STE: screen base incl. low byte and counter,
+@Video_UpdateRegsSTE hardware fine scroll and line offset, ST palette.
+F_0469e Video_UpdateRegsTT
+@Video_UpdateRegsTT Video_UpdateRegsTT() : GodLib Video_UpdateRegsTT. As STE, plus the pending 256-colour TT palette.
+F_047d8 Video_UpdateRegsFalcon
+@Video_UpdateRegsFalcon Video_UpdateRegsFalcon() : GodLib Video_UpdateRegsFalcon. Screen base, scroll/line width, ST palette and the
+@Video_UpdateRegsFalcon pending 256-colour Falcon palette.
+F_0487a Video_XbiosFalconSetLow
+@Video_XbiosFalconSetLow Video_XbiosFalconSetLow() : GodLib Video_XbiosFalconSetLow. Uses XBIOS mode calls to switch the Falcon to an
+@Video_XbiosFalconSetLow ST-compatible 16-colour mode. Unreferenced.
+F_048ae Video_SetFalconSTLowVGA
+@Video_SetFalconSTLowVGA Video_SetFalconSTLowVGA() : GodLib Video_SetFalconSTLowVGA. Programs the Videl for 320x200 16 colours on a VGA monitor.
+F_04900 Video_SetFalconSTLowPAL
+@Video_SetFalconSTLowPAL Video_SetFalconSTLowPAL() : GodLib Video_SetFalconSTLowRGBPAL(_W). Videl 320x200 16 colours, RGB/TV at 50 Hz.
+F_04950 Video_SetFalconSTLowNTSC
+@Video_SetFalconSTLowNTSC Video_SetFalconSTLowNTSC() : GodLib Video_SetFalconSTLowRGBNTSC(_W). Videl 320x200 16 colours, RGB/TV at 60 Hz
+@Video_SetFalconSTLowNTSC (chosen by Video_SetMode when the measured refresh rate is above 55 Hz).
+B_2101a gVideoSavedRegs
+B_214ba gVideo
+B_214da gVideoUpdatePhysic

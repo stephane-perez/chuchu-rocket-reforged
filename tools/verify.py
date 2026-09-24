@@ -40,5 +40,17 @@ r = subprocess.run([vasm, '-Ftos', '-nosym', '-no-opt', '-m68000', '-tos-flags=6
 p = PRG(open(os.path.join(ROOT, 'out', 'CHUCHU_SHIFTED.TOS'), 'rb').read())
 print('shift  : out/CHUCHU_SHIFTED.TOS assembled, text %d bytes (+%d) - run it with run/run.sh' % (p.tlen, p.tlen - 0x19602))
 ok &= r.returncode == 0
+r = subprocess.run([sys.executable, os.path.join(ROOT, 'build.py'), '-D', 'OPTIM'], capture_output=True, text=True)
+print('optim  :', (r.stdout.strip().split('\n') or [''])[0])
+ok &= r.returncode == 0
+try:
+    import unicorn  # noqa
+    r = subprocess.run([sys.executable, os.path.join(T, 'difftest.py')], capture_output=True, text=True)
+    for line in r.stdout.strip().split('\n'):
+        print('diff   :', line)
+    ok &= r.returncode == 0
+except ImportError:
+    print('diff   : (module unicorn absent : pip install unicorn)')
+subprocess.run([sys.executable, os.path.join(ROOT, 'build.py')], capture_output=True)
 print('RESULT :', 'ALL OK' if ok else 'FAILURE')
 sys.exit(0 if ok else 1)

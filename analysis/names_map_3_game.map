@@ -1,0 +1,369 @@
+# ===== Range C: F_0a190 .. F_0d4bc =====
+# Module lifecycle convention seen in this range: every game module has
+#   <Module>_Init      (Game_InitModules, once at start)
+#   <Module>_DeInit    (F_08664, once at program exit)
+#   <Module>_RoundBegin(Round_InitModules, start of Round_Run)
+#   <Module>_SetupForLevel (Round_SetupLevel, each level)
+#   <Module>_LevelReset(F_08832, before a level restarts / next level)
+#   <Module>_RoundEnd  (F_0873c, end of Round_Run)
+# Many of these are empty (rts) hooks.
+
+# ---- Input devices (end of the input module, used by Input_UpdateCursor) ----
+F_0a190 Input_KeyToButton
+@Input_KeyToButton Input_KeyToButton(a0 = input device, d0 = button index) : reads the
+@Input_KeyToButton scancode stored at +$2e+2*index, and updates the button state byte at
+@Input_KeyToButton +$2f+2*index (3 = just pressed, 1 = held, 4 = just released, 0 = up).
+@Input_KeyToButton Used for keys 10/11 (puzzle / extra buttons) of joystick and mouse devices.
+F_0a1f4 Input_JoystickToButtons
+@Input_JoystickToButtons Input_JoystickToButtons(a0 = input device, d0.b = joystick byte) :
+@Input_JoystickToButtons bit 2 -> left (+$2e), bit 3 -> right (+$30), bit 1 -> down (+$32),
+@Input_JoystickToButtons bit 0 -> up (+$34), bit 7 -> fire (+$3e), each via Button_Update.
+F_0a25c Input_PadToButtons
+@Input_PadToButtons Input_PadToButtons(a0 = input device, d0.b = pad directions/fire, d1.w = pad buttons) :
+@Input_PadToButtons like Input_JoystickToButtons (STE/Jaguar pad or TeamTap), plus bit 6 -> +$40
+@Input_PadToButtons and pad word bit 13 -> +$42, bit 8 -> +$44.
+F_0a2fa Input_MoveCursorByDirs
+@Input_MoveCursorByDirs Input_MoveCursorByDirs(a0 = input device, d0.l = speed) : moves the cursor
+@Input_MoveCursorByDirs position (+0 x, +4 y, fixed point) by d0 for each held direction button
+@Input_MoveCursorByDirs (left -x, right +x, down +y, up -y). Speed is $4000 in Input_UpdateCursor.
+F_0a328 Input_AnyFirePressed
+@Input_AnyFirePressed d0 = Input_AnyFirePressed() : non-zero if joystick 0 or 1 fire (bit 7),
+@Input_AnyFirePressed a mouse button or the Space key (scancode 57) is down. Skips the title screen.
+
+# ---- Intro (logos + title) ----
+F_0a370 Intro_InitPalettes
+@Intro_InitPalettes Intro_InitPalettes() : fills gBlackWhitePalettes with 16 black colours
+@Intro_InitPalettes followed by 16 white ($0fff) colours. Called before Intro_LogosAndTitle.
+@Intro_InitPalettes The buffer is not read anywhere else (fade helpers leftover?).
+F_0a392 Intro_EmptyHook_0a392
+@Intro_EmptyHook_0a392 Intro_EmptyHook_0a392() : empty, called right after Intro_LogosAndTitle.
+B_27d4e gBlackWhitePalettes
+D_1a010 RgLogoFileName
+D_1a01b SonicTeamFileName
+D_1a027 TitlePicFileName
+
+# ---- Cats ----
+F_0a578 Cats_DeInit
+@Cats_DeInit Cats_DeInit() : empty module hook (program exit).
+F_0a57a Cats_RoundBegin
+@Cats_RoundBegin Cats_RoundBegin() : clears gCatsActiveMask (no cat slot in use).
+F_0a582 Cats_RoundEnd
+@Cats_RoundEnd Cats_RoundEnd() : empty module hook (end of Round_Run).
+F_0a584 Cats_SetupForLevel
+@Cats_SetupForLevel Cats_SetupForLevel() : clears the 32 cat records and the per-tile cat
+@Cats_SetupForLevel occupancy, then spawns a cat (Cat_Spawn) on every level cell whose byte 1
+@Cats_SetupForLevel has bits 4-5 = $20, direction from byte 1 bits 6-7 (cats placed in the level
+@Cats_SetupForLevel file, used by puzzles).
+F_0a636 Cats_LevelReset
+@Cats_LevelReset Cats_LevelReset() : empty module hook (level restart).
+
+# ---- Application ----
+F_0a954 App_Init
+@App_Init App_Init() : installs the screen grabber VBL routine (ScreenGrab_Vbl), sets
+@App_Init its save folder "SCRNGRAB\" and sets gAppState = 0 (boot).
+F_0a96e App_DeInit
+@App_DeInit App_DeInit() : removes the screen grabber VBL routine.
+F_0aac0 System_IsLowMemory
+@System_IsLowMemory d0 = System_IsLowMemory() : 1 when phystop ($42e) is below 2 MB, else 0.
+@System_IsLowMemory Low-memory machines keep music packed (depacked on demand) and get no samples.
+B_2831e gAppState
+D_1a03e ScreenGrabFolder
+
+# ---- Level bank / current level ----
+F_0abce Levels_FreeAll
+@Levels_FreeAll Levels_FreeAll() : frees the 10 level files loaded by Levels_LoadAll (exit).
+F_0abf4 Levels_RoundBegin
+@Levels_RoundBegin Levels_RoundBegin() : empty module hook.
+F_0abf6 Levels_RoundEnd
+@Levels_RoundEnd Levels_RoundEnd() : empty module hook.
+F_0abf8 Level_LoadCurrent
+@Level_LoadCurrent Level_LoadCurrent() : copies level gLevelIndex of set gLevelSet (250 bytes,
+@Level_LoadCurrent from gLevelBank) into gLevelHeader, the working copy the round plays on.
+F_0ac2a Levels_LevelReset
+@Levels_LevelReset Levels_LevelReset() : empty module hook.
+F_0ac2c Challenge_RecordBestTime
+@Challenge_RecordBestTime Challenge_RecordBestTime() : stage challenge (gGameMode 3) finished:
+@Challenge_RecordBestTime time = minutes*60 + seconds + 1 of the round timer's elapsed time,
+@Challenge_RecordBestTime capped at 40; stored in the best-time table B_2a894[gLevelIndex]
+@Challenge_RecordBestTime (25 words, saved in chuchu.sav) if lower than the old value.
+F_0ad32 Levels_GetPreviewWallMask
+@Levels_GetPreviewWallMask a0 = Levels_GetPreviewWallMask() : the 38-byte wall mask (see
+@Levels_GetPreviewWallMask Level_BuildWallMask) of the level selected in the menu preview
+@Levels_GetPreviewWallMask (set/index words at gLevelBank+$2544/$2546). Masks: [10 sets][25][38].
+B_2834a gLevelWallMasks
+F_0ad7c Level_DeInit
+@Level_DeInit Level_DeInit() : points gLevelMap back to gLevelHeader (program exit).
+F_0ad88 Level_RoundBegin
+@Level_RoundBegin Level_RoundBegin() : empty module hook.
+F_0ad8a Level_RoundEnd
+@Level_RoundEnd Level_RoundEnd() : empty module hook.
+F_0ad8c Level_SetupForLevel
+@Level_SetupForLevel Level_SetupForLevel() : empty module hook (Round_SetupLevel).
+F_0ad8e Level_LevelReset
+@Level_LevelReset Level_LevelReset() : empty module hook.
+F_0adbe Level_CopyToCurrent
+@Level_CopyToCurrent Level_CopyToCurrent(a0 = level in a level file) : copies the 250-byte
+@Level_CopyToCurrent level into gLevelHeader and sets gLevelMap (just after it) = gLevelHeader.
+
+# ---- Game module / pause menu / link file ----
+F_0ae1e Game_DeInit
+@Game_DeInit Game_DeInit() : empty module hook.
+F_0ae20 Game_RoundBegin
+@Game_RoundBegin Game_RoundBegin() : empty module hook.
+F_0ae22 Game_RoundEnd
+@Game_RoundEnd Game_RoundEnd() : empty module hook.
+F_0ae24 Pause_ResetChoice
+@Pause_ResetChoice Pause_ResetChoice() : gPauseChoice = 1 (pause menu cursor on "continue").
+F_0ae2e Game_LevelReset
+@Game_LevelReset Game_LevelReset() : empty module hook.
+F_0ae30 Pause_SetChoice
+@Pause_SetChoice Pause_SetChoice(d0 = choice) : pause menu selection, 0 = quit, 1 = continue.
+F_0ae38 Pause_GetChoice
+@Pause_GetChoice d0.b = Pause_GetChoice() : current pause menu selection (1 = continue).
+B_2a9c4 gPauseChoice
+B_2a9c6 gLinkFile
+D_1a36a LinkFileName
+F_0aeda LinkFile_LoadTo
+@LinkFile_LoadTo d0 = LinkFile_LoadTo(a0 = file name, a1 = buffer) : loads (and depacks)
+@LinkFile_LoadTo a file of chuchu.lnk into an existing buffer. Returns 1 on success.
+F_0af00 LinkFile_GetSize
+@LinkFile_GetSize d0.l = LinkFile_GetSize(a0 = file name) : unpacked size of a file in
+@LinkFile_GetSize chuchu.lnk (entry +4), 0 if not found.
+F_0af12 LinkFile_GetPackedSize
+@LinkFile_GetPackedSize d0.l = LinkFile_GetPackedSize(a0 = file name) : stored (packed) size (entry +0).
+F_0af24 LinkFile_GetSize2
+@LinkFile_GetSize2 d0.l = LinkFile_GetSize2(a0 = file name) : identical copy of LinkFile_GetSize.
+
+# ---- Players ----
+# Player record ($de bytes, gPlayers): +$44/+$4a cleared per level, +$46 active,
+# +$48 score, +$4c index, +$4e rounds won, +$52 input device (cursor x/y, bounds,
+# +$20 control type: 14 = computer, +$2e.. buttons), +$98 copy of the device.
+# After the 4 records: +$378 ranking (4 bytes), +$37e.. start animation.
+F_0b070 Players_DeInit
+@Players_DeInit Players_DeInit() : empty module hook.
+F_0b072 Players_RoundBegin
+@Players_RoundBegin Players_RoundBegin() : clears the rounds won of the 4 players and copies
+@Players_RoundBegin their control types from gOptions (players 2-4 at +$10/+$16/+$1c).
+F_0b0b4 Players_RoundEnd
+@Players_RoundEnd Players_RoundEnd() : empty module hook.
+F_0b0b6 Players_SetupForLevel
+@Players_SetupForLevel Players_SetupForLevel() : for each player: active if index < player count,
+@Players_SetupForLevel score/arrow counters cleared, 16 arrow slots pointed to a dummy, cursor
+@Players_SetupForLevel bounds set to the board (puzzle: wider, to reach the side panel), cursor
+@Players_SetupForLevel on its rocket (challenge: fixed central start); start animation reset.
+F_0b254 Players_LevelReset
+@Players_LevelReset Players_LevelReset() : empty module hook.
+F_0b944 Players_GetRanking
+@Players_GetRanking a0 = Players_GetRanking() : 4 player numbers sorted by score (best first),
+@Players_GetRanking see Players_SortByScore.
+B_2ad5c gPlayerRanking
+F_0b988 Players_AnimRoundIntro
+@Players_AnimRoundIntro d0 = Players_AnimRoundIntro() : round start animation. Each player's
+@Players_AnimRoundIntro marker bounces twice above its cursor (y = sin(phase/64*2pi)*12, phase +2
+@Players_AnimRoundIntro per frame, players staggered by 10), then falls 6 px per frame. Draws with
+@Players_AnimRoundIntro F_1163e and returns the number still on screen (0 = done, round starts).
+B_2ad62 gPlayerIntroAnim
+D_1a3b6 IntroBounceDivisor
+D_1a3c0 IntroBounceTwoPi
+D_1a3ca IntroBounceHeight
+F_0bb2c Players_IsTie
+@Players_IsTie d0 = Players_IsTie() : 1 when the round ended in a tie: battle (mode 0) the two
+@Players_IsTie best scores are equal; team battle (mode 1) players 1+2 equal players 3+4. 0 otherwise.
+
+# ---- Cursors ----
+F_0bbca Cursors_DeInit
+@Cursors_DeInit Cursors_DeInit() : empty module hook.
+F_0bbcc Cursors_RoundBegin
+@Cursors_RoundBegin Cursors_RoundBegin() : shows the cursors of the playing players (+$14 = 1),
+@Cursors_RoundBegin hides the others.
+F_0bc06 Cursors_RoundEnd
+@Cursors_RoundEnd Cursors_RoundEnd() : empty module hook.
+F_0bc08 Cursors_SetupForLevel
+@Cursors_SetupForLevel Cursors_SetupForLevel() : same show/hide as Cursors_RoundBegin, and puts
+@Cursors_SetupForLevel the 4 cursor positions back to 0,0.
+F_0bc5a Cursors_LevelReset
+@Cursors_LevelReset Cursors_LevelReset() : empty module hook.
+
+# ---- Random ----
+F_0bc72 Random_DeInit
+@Random_DeInit Random_DeInit() : empty module hook.
+F_0bc74 Random_RoundBegin
+@Random_RoundBegin Random_RoundBegin() : empty module hook.
+F_0bc76 Random_RoundEnd
+@Random_RoundEnd Random_RoundEnd() : empty module hook.
+F_0bc78 Random_SetupForLevel
+@Random_SetupForLevel Random_SetupForLevel() : empty module hook.
+F_0bc7a Random_LevelReset
+@Random_LevelReset Random_LevelReset() : empty module hook.
+F_0bc7c Random_Stir
+@Random_Stir Random_Stir() : advances gRandomSeed one step (seed*$10dcd + $29). Called every
+@Random_Stir frame by FrontEnd_Run, so the time spent in the menus changes the games.
+F_0bcfa Random_Next32
+@Random_Next32 d0.l = Random_Next32() : advances gRandomSeed and returns the whole 32-bit seed.
+
+# ---- Rockets ----
+F_0bd6a Rockets_DeInit
+@Rockets_DeInit Rockets_DeInit() : empty module hook.
+F_0bd6c Rockets_RoundBegin
+@Rockets_RoundBegin Rockets_RoundBegin() : empty module hook.
+F_0bd6e Rockets_RoundEnd
+@Rockets_RoundEnd Rockets_RoundEnd() : empty module hook.
+F_0be4a Rockets_LevelReset
+@Rockets_LevelReset Rockets_LevelReset() : empty module hook.
+F_0c01c Rockets_GetList
+@Rockets_GetList a0 = Rockets_GetList() : gRockets (pointers to the rocket cells, count at +$c4).
+F_0c024 Rockets_StartTakeover
+@Rockets_StartTakeover Rockets_StartTakeover(d0 = winning player) : end of round. For each rocket
+@Rockets_StartTakeover of that player, starts a mover in gRocketTakeover (12 bytes: active, x, y,
+@Rockets_StartTakeover dx = +1 if x < 6 else -1, dy = +1 if y < 4 else -1, owner). Used by
+@Rockets_StartTakeover Rockets_PlayLaunch; team battle calls it for both team members.
+B_2b9a6 gRocketTakeover
+F_0c0e2 Rocket_GetCatCount
+@Rocket_GetCatCount d0 = Rocket_GetCatCount(d0 = player) : number of cats that entered that
+@Rocket_GetCatCount player's rockets this level (gRocketCatHits, incremented by Rocket_Enter).
+B_2b964 gRocketCatHits
+F_0c0f2 Rockets_TakeoverStep
+@Rockets_TakeoverStep d0 = Rockets_TakeoverStep(d0 = mover index) : if the mover is on the board
+@Rockets_TakeoverStep and its cell is not already a rocket of its owner, turns the cell into
+@Rockets_TakeoverStep that owner's rocket (F_05a2c), redraws it (F_14600) and returns 1; else 0.
+F_0c2a4 Rockets_FindCatHit
+@Rockets_FindCatHit d0 = Rockets_FindCatHit() : first index (< gRocketCount) whose
+@Rockets_FindCatHit gRocketCatHits is non-zero, or -1. Puzzle mode: a cat reached a rocket = fail.
+F_0c2c8 Rockets_GetLastCatRocket
+@Rockets_GetLastCatRocket a0 = Rockets_GetLastCatRocket() : the rocket cell a cat entered last
+@Rockets_GetLastCatRocket (set by Rocket_Enter); used to focus the puzzle failure effect.
+B_2b960 gLastCatRocket
+
+# ---- Spinner (roulette) ----
+F_0c2d2 Spinner_DeInit
+@Spinner_DeInit Spinner_DeInit() : empty module hook.
+F_0c2d4 Spinner_RoundBegin
+@Spinner_RoundBegin Spinner_RoundBegin() : empty module hook.
+F_0c2d6 Spinner_RoundEnd
+@Spinner_RoundEnd Spinner_RoundEnd() : empty module hook.
+F_0c2d8 Spinner_SetupForLevel
+@Spinner_SetupForLevel Spinner_SetupForLevel() : no spinner event running (gSpinnerActive = 0,
+@Spinner_SetupForLevel gSpinnerFramesLeft = 0).
+B_2bb2a gSpinnerFramesLeft
+F_0c2e6 Spinner_LevelReset
+@Spinner_LevelReset Spinner_LevelReset() : empty module hook.
+
+# ---- AI ray tracer (hand-written asm, called by the AI path map code F_0727a/F_07418) ----
+# Maps: a0 = 3 layers (one per number of extra turns, 0-2) of 640 bytes:
+# +0 9 row bitmasks (bit n = column n reached), +$80 9x12 byte distance map.
+# a1 = level cells (header+$22). d0 = row, d1 = column, d2 = steps, d3 = turn depth.
+F_0c99a AiTrace_ClearRowMasks
+@AiTrace_ClearRowMasks AiTrace_ClearRowMasks(a0 = map) : clears the 9 row bitmask words (18 bytes).
+F_0c9a8 AiTrace_ClearDistances
+@AiTrace_ClearDistances AiTrace_ClearDistances(a0 = distance map) : fills 9x12 bytes with $ff
+@AiTrace_ClearDistances (unreached).
+F_0c9b8 AiTrace_StartRight
+@AiTrace_StartRight AiTrace_StartRight(a0 = maps, a1 = cells, d0 = row, d1 = column) :
+@AiTrace_StartRight saves all registers and traces to the right from the cell with 0 steps/turns.
+F_0c9cc AiTrace_StartLeft
+@AiTrace_StartLeft AiTrace_StartLeft(a0 = maps, a1 = cells, d0 = row, d1 = column) : same, to the left.
+F_0c9e0 AiTrace_StartUp
+@AiTrace_StartUp AiTrace_StartUp(a0 = maps, a1 = cells, d0 = row, d1 = column) : same, upwards.
+F_0c9f4 AiTrace_StartDown
+@AiTrace_StartDown AiTrace_StartDown(a0 = maps, a1 = cells, d0 = row, d1 = column) : same, downwards.
+F_0ca08 AiTrace_Right
+@AiTrace_Right AiTrace_Right(d0 row, d1 col, d2 steps, d3 turns) : walks right (wrapping) writing
+@AiTrace_Right the step count where it is lower than the stored one; stops at rockets, holes,
+@AiTrace_Right blocking arrows, a right wall or 144 steps. At each cell it recursively branches
+@AiTrace_Right up/down (walls force the turn; free turns cost one of the 2 allowed extra turns).
+F_0cafa AiTrace_Left
+@AiTrace_Left AiTrace_Left(d0 row, d1 col, d2 steps, d3 turns) : same as AiTrace_Right, to the left.
+F_0cbec AiTrace_Up
+@AiTrace_Up AiTrace_Up(d0 row, d1 col, d2 steps, d3 turns) : same, upwards (row - 1, wraps to 8);
+@AiTrace_Up branches left/right.
+F_0ccf0 AiTrace_Down
+@AiTrace_Down AiTrace_Down(d0 row, d1 col, d2 steps, d3 turns) : same, downwards (row + 1, wraps
+@AiTrace_Down to 0); branches left/right.
+
+# ---- Sound: music and sound effects ----
+F_0cdf8 Sound_Init
+@Sound_Init Sound_Init() : loads the music player and tunes (Music_LoadPlayer) and the
+@Sound_Init sound effect samples (Sfx_LoadSamples). Called once at boot.
+F_0ce06 Sound_DeInit
+@Sound_DeInit Sound_DeInit() : frees the music (Music_Free), the DMA sound buffers
+@Sound_DeInit (Sfx_DeInit) and silences the sound chip.
+F_0cf28 Music_Free
+@Music_Free Music_Free() : stops the player and frees SNDREP, the 13 tunes, the voice set
+@Music_Free (CHU.TVS) and the depack buffer.
+F_0cf96 Music_Update
+@Music_Update Music_Update() : empty per-frame hook (music runs from the Timer C interrupt).
+F_0d03a Music_Stop
+@Music_Stop Music_Stop() : if a tune is playing, unhooks Timer C, calls the player's stop entry
+@Music_Stop (MusicPlayer_Stop) and clears gMusicPlaying; then silences the sound chip.
+F_0d05c Music_GetVoiceSet
+@Music_GetVoiceSet d0 = Music_GetVoiceSet() : voice set (d0 of the last Music_Play, always 0).
+F_0d064 Music_GetTune
+@Music_GetTune d0 = Music_GetTune() : tune number of the last Music_Play (CHU_xx.TRI index).
+F_0d06c Music_IsPlaying
+@Music_IsPlaying d0.b = Music_IsPlaying() : gMusicPlaying.
+B_2bb30 gMusicPlayer
+B_2bb3c gMusicTunes
+B_2bba8 gMusicPlaying
+B_2bbaa gMusicVoiceSet
+B_2bbac gMusicTune
+B_2bbae gMusicMaxTuneSize
+D_1a3e8 MusicPlayerFileName
+D_1a3ef TuneFileNameFormat
+D_1a3fc VoiceSetFileName
+F_0d074 Sfx_LoadSamples
+@Sfx_LoadSamples Sfx_LoadSamples() : unless memory is low, loads the 37 samples named in
+@Sfx_LoadSamples SfxSampleNames into gSfxSamples (12 bytes: +0 data, +4 length, +8 flags),
+@Sfx_LoadSamples scales their volume to 64/256 on machine type 6, sets gSfxLoaded, then
+@Sfx_LoadSamples resets the request queue (Sfx_ResetQueue) and starts DMA sound.
+F_0d156 Sfx_ResetQueue
+@Sfx_ResetQueue Sfx_ResetQueue() : links the 16 sound request slots of gSfxQueue (20 bytes:
+@Sfx_ResetQueue +0 sound, +4 priority, +6 frames left, +8 pan, +$c next, +$10 prev) into a list,
+@Sfx_ResetQueue all idle; head = first slot, tail = last slot.
+F_0d1c0 SfxQueue_Unlink
+@SfxQueue_Unlink SfxQueue_Unlink(a0 = slot) : removes the slot from the request list.
+F_0d204 SfxQueue_MoveToTail
+@SfxQueue_MoveToTail SfxQueue_MoveToTail(a0 = slot) : moves the slot to the end of the list.
+F_0d21c SfxQueue_InsertAfter
+@SfxQueue_InsertAfter SfxQueue_InsertAfter(a0 = slot, a1 = position) : inserts after a1
+@SfxQueue_InsertAfter (updates the tail).
+F_0d258 SfxQueue_InsertBefore
+@SfxQueue_InsertBefore SfxQueue_InsertBefore(a0 = slot, a1 = position) : inserts before a1
+@SfxQueue_InsertBefore (updates the head). Keeps the list sorted by priority.
+F_0d294 Sfx_DeInit
+@Sfx_DeInit Sfx_DeInit() : stops DMA sound and frees its buffers (F_00252).
+F_0d29c Sfx_Update
+@Sfx_Update Sfx_Update() : once per frame. Plays the highest priority pending request when
+@Sfx_Update a DMA channel is free (if gSfxLoaded and the sfx option are on), then counts down
+@Sfx_Update every request; a request not played within 30 frames is dropped.
+F_0d3c6 Sample_ScaleVolume
+@Sample_ScaleVolume Sample_ScaleVolume(a0 = sample {data, length}, d0 = factor) : every signed
+@Sample_ScaleVolume 8-bit sample = sample * factor / 256.
+F_0d3f4 MusicPlayer_Init
+@MusicPlayer_Init MusicPlayer_Init(a0 = voice set, a1 = tune) : calls entry +0 of the SNDREP
+@MusicPlayer_Init player (entry +4 = L_0d408 is the Timer C tick, +8 = stop).
+F_0d41e MusicPlayer_Stop
+@MusicPlayer_Stop MusicPlayer_Stop() : calls the stop entry (+8) of the SNDREP player.
+F_0d434 DmaSound_Unused_0d434
+@DmaSound_Unused_0d434 DmaSound_Unused_0d434() : unreferenced. If STE DMA sound is idle (or its
+@DmaSound_Unused_0d434 frame counter reached the end address), sets the DMA rate bits of $ff8921 to 3 (50 kHz).
+B_2bbb6 gSfxSamples
+B_2bd72 gSfxQueue
+B_2beb2 gSfxQueueHead
+B_2beb6 gSfxQueueTail
+D_1a410 gSfxLoaded
+D_1a412 SfxSampleNames
+
+# ---- Arrow graphics (ARROWS.BSB) ----
+F_0d480 ArrowGfx_Load
+@ArrowGfx_Load ArrowGfx_Load() : loads ARROWS.BSB (arrow sprites) into gArrowGfx and relocates it (F_007a2).
+F_0d49e ArrowGfx_RenderInit
+@ArrowGfx_RenderInit ArrowGfx_RenderInit() : empty hook called by Render_InitAll.
+F_0d4a0 ArrowGfx_Free
+@ArrowGfx_Free ArrowGfx_Free() : frees gArrowGfx.
+F_0d4ae Arrows_DrawAll
+@Arrows_DrawAll Arrows_DrawAll() : draws every placed arrow (gArrowCells) on the back screen (F_156ac).
+F_0d4bc ArrowGfx_DrawSprite
+@ArrowGfx_DrawSprite ArrowGfx_DrawSprite(d0 = sprite, a0 = screen, d1 = x, d2 = y) : draws arrow
+@ArrowGfx_DrawSprite sprite d0 of gArrowGfx through the blitter object B_2db20 (puzzle arrow stock panel).
+B_2beba gArrowGfx
+D_1a662 ArrowsGfxFileName

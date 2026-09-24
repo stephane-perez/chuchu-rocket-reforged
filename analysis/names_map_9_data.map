@@ -1,0 +1,13 @@
+# Headers for data used by the settings, and a corrected gOptions description.
+@gOptions gOptions : the 45 game options, option n is a long at gOptions + 2 + 6*n
+@gOptions (filled from DefaultOptions, then from CHUCHU.SAV, changed by the menus):
+@gOptions   +$02 game mode, +$08/+$0e/+$14/+$1a control of players 1-4 (1 mouse, $0e computer),
+@gOptions   +$20.. keys of the 4 players, +$b0 gold mouse frequency, +$b6 purple mouse
+@gOptions   frequency, +$bc sprite theme, +$c2 wins needed, +$c8 round time in seconds,
+@gOptions   +$d4 speed (not used by the game), +$da sound effects, +$e0 music, +$e6 speaker.
+@MouseSpeeds MouseSpeeds[3].l : mouse speed per frame (slow, normal, fast), see settings.s.
+@CatSpeeds CatSpeeds[3].l : cat speed per frame (slow, normal, fast), see settings.s.
+@ColumnPan ColumnPan[12] : stereo position of the sound effects for each board column
+@ColumnPan (0 = left .. 255 = right).
+@LevelFileNames LevelFileNames[10] {long level set, long -> file name} : the .CHU file of each level set (5 = NORMAL.CHU), searched by set number.
+@LevelCreditNames LevelCreditNames[25] : titles given to the 25 battle levels (team names).

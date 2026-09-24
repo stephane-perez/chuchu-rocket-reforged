@@ -1,0 +1,158 @@
+# Headers for the functions that still had none (and two OPT_BLIT renames).
+
+Blit_16604 Blit_RestoreCells
+Blit_16706 Blit_RestoreBorder
+
+@ProgramEntry ProgramEntry : first instruction of the program (jumps to PureC_Start), followed by
+@ProgramEntry the Reservoir Gods header: "Reservoir Gods    Falcon 030    Code:  Mr.Pink".
+@PureC_Start PureC_Start : Pure C start-up code. Shrinks the program memory block (Mshrink),
+@PureC_Start sets up the stack and the heap, detects the FPU (PureC_FpuDetect), calls Game_Main,
+@PureC_Start frees the heap and returns to the desktop with Game_Main's exit code.
+@Ikbd_Init Ikbd_Init() : GodLib IKBD_Init. Clears the key tables, saves the system keyboard
+@Ikbd_Init handler (via Kbdvbase) and installs the game's own ACIA handler, flushes the
+@Ikbd_Init keyboard, and adds a VBL routine that reads the STE joypads.
+@Ikbd_DeInit Ikbd_DeInit() : GodLib IKBD_DeInit. Flushes the keyboard and puts the system
+@Ikbd_DeInit keyboard handler back.
+@Ikbd_JoystickMode Ikbd_JoystickMode() : IKBD commands $12 (mouse off) and $14 (joystick
+@Ikbd_JoystickMode events): both joystick ports report joystick packets.
+@Ikbd_MouseMode Ikbd_MouseMode() : IKBD command $08: relative mouse mode (port 0 = mouse).
+@Memory_Free Memory_Free(a0 = block) : frees a memory block (GEMDOS Mfree), nothing if a0 = 0.
+@Packer_GetType d0 = Packer_GetType(a0 = data) : packer used for the data (Pack-Ice "ICE!"
+@Packer_GetType header or not packed).
+@Audio_SoundChipOff Audio_SoundChipOff() : GodLib. Silences the YM2149 sound chip (volume of
+@Audio_SoundChipOff the 3 voices set to 0, mixer off).
+@IKBD_PopKbdByte d0.b = IKBD_PopKbdByte() : GodLib. Takes the next byte from the 2 KB keyboard
+@IKBD_PopKbdByte ring buffer (gIkbdKbdBuffer).
+@Ikbd_SendByte Ikbd_SendByte(d0 = byte) : sends one command byte to the keyboard processor
+@Ikbd_SendByte (waits until the ACIA can transmit, processing incoming bytes meanwhile).
+@Ice_Depack Ice_Depack(a0 = packed data, a1 = destination) : Pack-Ice 2.40 depacker
+@Ice_Depack (works backwards from the end of the packed data).
+@ScreenGrab_Vbl ScreenGrab_Vbl() : VBL routine of the screen grabber: when enabled and not
+@ScreenGrab_Vbl already running, calls ScreenGrab_Update with all registers saved.
+@Mfp_InstallStandardTimerC Mfp_InstallStandardTimerC() : GodLib. Saves the system Timer C
+@Mfp_InstallStandardTimerC vector and installs the game's 200 Hz handler (gClock, hook calls).
+@Mfp_HookIntoTimerC Mfp_HookIntoTimerC(a0 = {routine, rate}) : GodLib. Makes the Timer C
+@Mfp_HookIntoTimerC handler also call a routine at the given rate (used by the music player).
+@Vbl_Wait Vbl_Wait() : waits for the next vertical blank (the system _frclock changes).
+@Video_SaveRegsST Video_SaveRegsST(a0 = buffer) : GodLib. Saves the ST video registers
+@Video_SaveRegsST (screen address, resolution, palette) to restore them at exit.
+@Video_SaveRegsSTE Video_SaveRegsSTE(a0 = buffer) : GodLib. Same for an STE (adds the
+@Video_SaveRegsSTE line width and horizontal scroll registers).
+@Video_SaveRegsFalcon Video_SaveRegsFalcon(a0 = buffer) : GodLib. Same for a Falcon
+@Video_SaveRegsFalcon (VIDEL registers).
+@Video_XbiosSetScreen Video_XbiosSetScreen(...) : GodLib. XBIOS Setscreen (used to change
+@Video_XbiosSetScreen the video mode).
+@Ai_InitStub Ai_InitStub() : empty AI hook, called once by Game_InitModules.
+@Ai_IsArrowOnFlow d0.b = Ai_IsArrowOnFlow(a0 = arrow cell) : true when some creature path of
+@Ai_IsArrowOnFlow the flow map (gFlowMap) goes over this arrow in its direction.
+@Ai_DoesArrowReachRocket d0.b = Ai_DoesArrowReachRocket(a0 = arrow cell, d0 = target player) :
+@Ai_DoesArrowReachRocket true when the arrow sends creatures into the target player's rocket
+@Ai_DoesArrowReachRocket (checked on that player's rocket map).
+@Round_EmptyHook Round_EmptyHook() : empty hook called by Round_UpdateLogic.
+@Arrows_RemoveAll Arrows_RemoveAll() : removes every arrow of the board (Arrow_Remove for
+@Arrows_RemoveAll each arrow cell in use). Used by the "Place Arrows Again" event.
+@PuzzleArrows_Clear PuzzleArrows_Clear() : forgets the arrows saved by PuzzleArrows_Save.
+@Demo_PickRandomLevel Demo_PickRandomLevel() : chooses a random battle level (0-23) for the demo.
+@Demo_Run Demo_Run() : attract-mode demo: sets gDemoActive, forces the demo options
+@Demo_Run (Demo_SaveOptions), picks a level and plays one round (Round_Run) with 4
+@Demo_Run computer players, then restores the user options.
+@Mice_SpawnFromLevel Mice_SpawnFromLevel() : clears the 128 mouse slots, then creates the
+@Mice_SpawnFromLevel mice that the level places on the board: tiles whose byte 1 has bits
+@Mice_SpawnFromLevel 4-5 = $10 hold a mouse, bits 6-7 give its direction.
+@Mouse_Remove Mouse_Remove(d0 = slot) : frees a mouse slot (active bit and flight slot).
+@Mice_RemoveAll Mice_RemoveAll() : removes every mouse (end of an event, Cat Attack...).
+@Cell_ClearType Cell_ClearType(a0 = board cell) : type bits 4-6 = 0 (empty tile, walls kept).
+@Controls_ApplyIkbdMode Controls_ApplyIkbdMode() : if one of the 4 players uses the mouse
+@Controls_ApplyIkbdMode (control type 1), puts the keyboard processor in mouse mode,
+@Controls_ApplyIkbdMode otherwise in joystick mode (both ports read as joysticks).
+@PathMaps_InitStub PathMaps_InitStub() : empty path-maps hook (Game_InitModules).
+@Ai_GetFlowMap a0 = Ai_GetFlowMap() : address of gFlowMap (tiles walked by creatures).
+@Ai_GetRocketMap a0 = Ai_GetRocketMap(d0 = player, d1 = arrows 0-2) : the player's rocket map
+@Ai_GetRocketMap for that number of extra arrows (gRocketMaps, 640 bytes each).
+@FrontEnd_Run FrontEnd_Run() : main menu loop (Mode select, Play, Options, Quit, How to
+@FrontEnd_Run play...). Draws the menu screens, reads the merged menu input every frame,
+@FrontEnd_Run plays the menu sounds, runs the sub-menus, and returns the choice to
+@FrontEnd_Run App_FrontEndStateMachine (play a round, demo after a delay, quit).
+@Round_InitModules Round_InitModules() : selects the in-game graphics and calls the
+@Round_InitModules RoundBegin hook of every game module (arrows, mice, cats, timers, cursors...).
+@Round_SetupLevel Round_SetupLevel() : prepares the current level: copies it from the level
+@Round_SetupLevel bank, resets AI, arrows, puzzle panel, pre-placed mice, round time
+@Round_SetupLevel (RoundTimer_SetLimit), spawners, cats, pause menu, rockets and players.
+@RoundTimer_Start RoundTimer_Start() : Timer_Start(1), the round timer.
+@RoundTimer_Stop RoundTimer_Stop() : Timer_Stop(1).
+@RoundTimer_Pause RoundTimer_Pause() : Timer_Pause(1) (pause menu, roulette).
+@RoundTimer_Resume RoundTimer_Resume() : Timer_Resume(1).
+@Spawners_InitStub Spawners_InitStub() : empty spawner hook (Game_InitModules).
+@Spawners_InitFromLevel Spawners_InitFromLevel() : registers every spawner tile of the level
+@Spawners_InitFromLevel (position, direction, random first delay), copies the gold / purple
+@Spawners_InitFromLevel frequency options and draws the first bonus countdowns from
+@Spawners_InitFromLevel BonusMouseFreqs.
+@Input_UpdateCursor Input_UpdateCursor(a0 = input device) : reads the device chosen for a
+@Input_UpdateCursor player (keyboard keys, mouse, joystick 0/1, STE joypads, team taps) and
+@Input_UpdateCursor turns it into cursor moves and the 12 button states (Button_Update).
+@Intro_LogosAndTitle Intro_LogosAndTitle() : shows RGLOGO.PI1 then SONICTM.PI1 with fades
+@Intro_LogosAndTitle (skipped with SKIP_INTRO), then continues with the title screen (Intro_Title).
+@Intro_Title Intro_Title : title screen (TITLE.PI1, flying rocket, title music). Waits for
+@Intro_Title fire or a key; after a delay without input the demo starts.
+@Cat_Spawn a0 = Cat_Spawn(d0 = row, d1 = column, d2 = direction) : takes the first free slot
+@Cat_Spawn of gCats (32 slots), places a walking cat at the centre of the tile; a0 = 0
+@Cat_Spawn when every slot is used.
+@Cat_Remove Cat_Remove(d0 = slot) : frees a cat slot.
+@Cats_RemoveAll Cats_RemoveAll() : removes every cat.
+@Level_SetIndex Level_SetIndex(d0 = level 0-24) : selects the level of the current level set.
+@Game_Main d0 = Game_Main() : the C main(). Supervisor mode, Game_Init, App_Init, the
+@Game_Main whole game (App_FrontEndStateMachine), App_DeInit, Game_Exit.
+@Level_InitStub Level_InitStub() : empty level hook (Game_InitModules).
+@Level_GetHeader a0 = Level_GetHeader() : address of the current level (34-byte header,
+@Level_GetHeader then the 9 x 12 tiles).
+@Game_InitStub Game_InitStub() : empty hook (Game_InitModules).
+@Game_Init Game_Init() : start-up of the system layer: machine detection (System_Init),
+@Game_Init VBL, video, keyboard, audio, graphics, data cache off, and opens CHUCHU.LNK.
+@Game_Exit Game_Exit() : undoes Game_Init in reverse order and gives the machine back to
+@Game_Exit GEM (with FIX_MOUSE the mouse is switched back on first).
+@LinkFile_Load a0 = LinkFile_Load(a0 = file name, d0/d1 = options) : loads (and depacks) a
+@LinkFile_Load file of CHUCHU.LNK into newly allocated memory.
+@Players_SortByScore Players_SortByScore() : sorts the player numbers by score, best first
+@Players_SortByScore (used for the ranking and the results).
+@Players_SetCount Players_SetCount(d0 = count) : number of players; marks them as playing.
+@Players_GetCount d0 = Players_GetCount() : number of players.
+@Player_Get a0 = Player_Get(d0 = player) : address of the player record (222 bytes, gPlayers).
+@Cursor_Get a0 = Cursor_Get(d0 = player) : address of the player's cursor (26 bytes, gCursors).
+@Rockets_UpdateAnim Rockets_UpdateAnim() : counts down the animation of every rocket
+@Rockets_UpdateAnim (creature entering = states 2/3, then back to 1; state 5 back to 0).
+@Rockets_GetCount d0 = Rockets_GetCount() : number of rockets on the board.
+@Rocket_FindByOwner a0 = Rocket_FindByOwner(d0 = player) : the player's rocket cell (the
+@Rocket_FindByOwner first rocket when the player has none).
+@Spinner_InitStub Spinner_InitStub() : empty roulette hook (Game_InitModules).
+@Spinner_CancelEvent Spinner_CancelEvent() : stops the running roulette event at once
+@Spinner_CancelEvent (removes the extra cats of Cat Mania / the mice of Mouse Mania).
+@Spinner_EndEvent Spinner_EndEvent() : normal end of a timed roulette event: removes what the
+@Spinner_EndEvent event added and restarts the round music.
+@Spinner_CatAttack Spinner_CatAttack() : "Cat Attack" event: removes every creature, then a cat
+@Spinner_CatAttack flies (50 animated frames) into the rocket of each opponent of the spinner
+@Spinner_CatAttack player (teammates are spared in team mode) and enters it (Rocket_Enter).
+@Spinner_EverybodyMove Spinner_EverybodyMove() : "Everybody Move" event: the rockets swap
+@Spinner_EverybodyMove places (animated), then the rocket list and the path maps are rebuilt.
+@Sound_Update Sound_Update() : once per frame: music (Music_Update) and sound effects (Sfx_Update).
+@Music_LoadPlayer Music_LoadPlayer() : loads the music player, the voice set and the tunes
+@Music_LoadPlayer from CHUCHU.LNK (fewer tunes when memory is low).
+@Sfx_PlayUrgent Sfx_PlayUrgent(d0 = sound, d1 = pan) : plays a sound effect at once, taking a
+@Sfx_PlayUrgent voice from another sound if needed (nothing when sound effects are off).
+@AtariIntro_Load AtariIntro_Load() : loads the Atari intro graphics (ATARI.GFX, FUJI.GFX, BALL.BSB...).
+@AtariIntro_Free AtariIntro_Free() : frees them.
+@AtariIntro_Run AtariIntro_Run() : the Atari logo intro (letters rising, Fuji drawn along
+@AtariIntro_Run splines, palette fades); a key skips it.
+@Render_InitAll Render_InitAll() : calls the Init entry of every render module before a round.
+@Render_Frame Render_Frame() : draws one game frame on the hidden screen: restores the
+@Render_Frame background under the old sprites, draws arrows, rockets, mice, cats,
+@Render_Frame highlights, labels, cursors and the HUD, then swaps the screens.
+@Hud_Update Hud_Update() : redraws the parts of the HUD marked dirty (panels, title,
+@Hud_Update arrow stock, level number, scores, rocket icons, clock...).
+@Hud_InvalidateArrows Hud_InvalidateArrows() : redraw the arrow stock on both screens.
+@Hud_FlashScoreBox Hud_FlashScoreBox(d0 = player) : redraw (flash) the player's score box.
+@Hud_InvalidatePlayer Hud_InvalidatePlayer(d0 = player) : redraw the player's HUD slot.
+@Spline_Load Spline_Load() : loads the spline table used by the Atari intro.
+@Spline_Free Spline_Free() : frees it.
+@GemDos_Call_LW a0 = GemDos_Call_LW(d0 = size, d1 = mode) : GEMDOS $44 Mxalloc.
+@GemDos_Call_LWW d0 = GemDos_Call_LWW(d0 = offset, d1 = handle, d2 = mode) : GEMDOS $42 Fseek.
+@Xbios_Call_PPP a0 = Xbios_Call_PPP(a0, a1, stack) : XBIOS $10 Keytbl (keyboard tables).

@@ -1,0 +1,188 @@
+# Game logic naming, batch 2: clock/timers, level bank, module init, input,
+# puzzle arrows, spawn tables. Applied with: python3 tools/rename.py THIS_FILE
+
+# ---- Real-time clock (MFP Timer C, 200 Hz) ----
+D_19bb0 gClock
+D_19bb4 gClockTicks
+F_01732 Clock_Get
+F_0173a Time_ToTicks
+F_0178c Time_FromTicks
+F_01806 Time_Add
+F_0182c Time_Sub
+@gClock Current time as 4 bytes {hours, minutes, seconds, 1/200 s}.
+@gClock Advanced by the 200 Hz Timer C interrupt (see the handler before
+@gClock Mfp_HookIntoTimerC); gClockTicks just counts the interrupts.
+@Clock_Get a0 = Clock_Get() : returns the address of gClock.
+@Time_ToTicks d0 = Time_ToTicks(a0 = time) : {h,m,s,1/200} -> number of 1/200 s ticks.
+@Time_FromTicks Time_FromTicks(d0 = ticks, a0 = out) : ticks -> {h,m,s,1/200}.
+@Time_Add Time_Add(a0 = a, a1 = b, stack = out) : out = a + b  (all in {h,m,s,1/200}).
+@Time_Sub Time_Sub(a0 = a, a1 = b, stack = out) : out = a - b.
+
+# ---- Game timers (5 slots of 26 bytes; slot 1 = round timer) ----
+B_2330a gTimers
+B_23324 gRoundTimer
+F_05a4e Timers_Init
+F_05b0a Timers_Update
+F_05b60 Timer_Start
+F_05ba6 Timer_Stop
+F_05bb6 Timer_Pause
+F_05bd6 Timer_Resume
+F_097f2 RoundTimer_Start
+F_097fc RoundTimer_Stop
+F_09806 RoundTimer_Pause
+F_09810 RoundTimer_Resume
+F_05a78 RoundTimer_SetLimit
+@gTimers Timer record (26 bytes), 5 records:
+@gTimers   +$00.w state     0 = stopped, 1 = running, 2 = paused
+@gTimers   +$02.l limit in 1/200 s ticks
+@gTimers   +$06.l start time  {h,m,s,1/200}
+@gTimers   +$0a.l pause time  {h,m,s,1/200}
+@gTimers   +$0e.l elapsed     = now - start
+@gTimers   +$12.l limit       {h,m,s,1/200}
+@gTimers   +$16.l remaining   = limit - elapsed (shown by the HUD clock)
+@Timers_Init Timers_Init() : stop every timer, then start timer 0 (global game time).
+@Timers_Update Timers_Update() : called once per frame; for every running timer
+@Timers_Update   elapsed = now - start ; remaining = limit - elapsed.
+@Timer_Start Timer_Start(d0 = slot) : state = running, start = now, elapsed = remaining = 0.
+@Timer_Stop Timer_Stop(d0 = slot) : state = stopped.
+@Timer_Pause Timer_Pause(d0 = slot) : remember the pause time, state = paused.
+@Timer_Resume Timer_Resume(d0 = slot) : start += (now - pause time) so the pause
+@Timer_Resume   is not counted, then state = running.
+@RoundTimer_SetLimit RoundTimer_SetLimit() : set the round duration.
+@RoundTimer_SetLimit   challenge mode : 40 s for levels 0-23, 60 s after
+@RoundTimer_SetLimit   other modes    : gOptions+$c8 seconds (option menu, 180 s in the demo)
+@RoundTimer_SetLimit The "levelTimeSecs %ld" sprintf result is never used (debug leftover).
+
+# ---- Options block ----
+B_234ec gOptions
+B_223b4 gOptionsBackup
+F_0537e Demo_SaveOptions
+F_053ea Demo_RestoreOptions
+@gOptions Game options chosen in the front-end menus (fields are longs):
+@gOptions   +$08/+$0e/+$14/+$1a control type of players 1-4 ($0e = computer)
+@gOptions   +$c2 speed setting, +$c8 round time in seconds
+@Demo_SaveOptions Demo_SaveOptions() : back up the user options, then force the
+@Demo_SaveOptions demo settings (4 computer players, 180 s rounds).
+@Demo_RestoreOptions Demo_RestoreOptions() : put back the options saved by Demo_SaveOptions.
+
+# ---- Level bank (10 .CHU files x 25 levels) ----
+B_28322 gLevelBank
+D_1a0c8 LevelFileNames
+D_1a118 LevelCreditNames
+F_0aadc Levels_LoadAll
+F_0ac78 Level_BuildWallMask
+@gLevelBank Level bank:
+@gLevelBank   +$0000  10 pointers to the loaded .CHU files (index = level set)
+@gLevelBank   +$0028  wall masks [10 sets][25 levels][38 bytes] (Level_BuildWallMask)
+@gLevelBank   +$2544  gLevelSet, +$2546 gLevelIndex
+@gLevelBank   +$254a  10 longs cleared at load time
+@gLevelBank   +$2572  25 words set to 40 at load time
+@gLevelBank
+@gLevelBank .CHU file = "CHUL" + long level count + 25 levels of 250 bytes.
+@gLevelBank Level (250 bytes) = 34-byte header + 9 rows x 12 columns x 2 bytes.
+@gLevelBank   header +$08 title (C string), +$1d objective (0 puzzle, 1 battle,
+@gLevelBank   2 get mice, 3 feed cat, 4 100 mice, 5 cat soccer, 6 win 100),
+@gLevelBank   +$1e..+$21 arrows in stock for puzzles (one byte per direction)
+@gLevelBank   cell byte 0 : bits 0-3 walls (1 left, 2 right, 4 down, 8 up)
+@gLevelBank                 bits 4-6 type ($10 spawner, $20 rocket, $30 hole, $40 arrow)
+@gLevelBank   cell byte 1 : bits 0-1 direction (0 left, 1 right, 2 down, 3 up)
+@gLevelBank The board wraps around: leaving on one side enters on the other.
+@Levels_LoadAll Levels_LoadAll() : load the 10 level files named in LevelFileNames
+@Levels_LoadAll (sets 0-3 puzzles, 4 stage change, 5 normal battle, 6-9 downloads),
+@Levels_LoadAll build the wall mask of every level, and give the 25 battle levels of
+@Levels_LoadAll set 5 the author names of LevelCreditNames as titles.
+@Level_BuildWallMask Level_BuildWallMask(a0 = level, a1 = out 38 bytes) : one bit per
+@Level_BuildWallMask wall: 9 words of vertical walls then 10 words of horizontal walls
+@Level_BuildWallMask (bit 15 = column 0). Used to draw the level preview.
+
+# ---- Module initialisation (called once, from Game_InitModules) ----
+F_085fc Game_InitModules
+F_04f44 Arrows_Init
+F_05928 TurnTable_Build
+F_0548a Mice_Init
+F_0a554 Cats_Init
+F_0af36 Players_Init
+F_0bbae Cursors_Init
+F_0bd1e Rockets_Init
+F_0bd70 Rockets_InitFromLevel
+F_0bc6a Random_Init
+F_049a4 Ai_InitStub
+F_05464 PuzzlePanel_InitStub
+F_06ec2 PathMaps_InitStub
+F_09952 Spawners_InitStub
+F_0ad7a Level_InitStub
+F_0ae1c Game_InitStub
+F_0c2d0 Spinner_InitStub
+@Game_InitModules Game_InitModules() : one-time initialisation of every game module
+@Game_InitModules (functions named *_InitStub are empty; kept from the original C code).
+@Arrows_Init Arrows_Init() : clear the 9x12 arrow grid; each cell knows its column and row.
+@TurnTable_Build TurnTable_Build() : fill gTurnTable[4 directions][16 wall combinations]
+@TurnTable_Build with the direction a creature takes when it hits walls:
+@TurnTable_Build   blocked ahead -> turn right; blocked right too -> turn left;
+@TurnTable_Build   blocked on 3 sides -> go back.
+@Mice_Init Mice_Init() : clear the mouse lists.
+@Cats_Init Cats_Init() : clear the cat list and set the cat constants.
+@Players_Init Players_Init() : default keys (arrows = cursor, Space = arrow,
+@Players_Init Undo, F1, F10), cursors, and control types (player 1 human,
+@Players_Init players 2-4 computer).
+@Cursors_Init Cursors_Init() : hide the 4 cursors.
+@Rockets_Init Rockets_Init() : clear the rocket grid (same 9x12 layout as the arrows).
+@Rockets_InitFromLevel Rockets_InitFromLevel() : scan the level and register every rocket cell.
+@Random_Init Random_Init() : gRandomSeed = 0 (the game is deterministic from here).
+
+# ---- Rockets ----
+B_2ade8 gRocketCells
+@gRocketCells Rocket grid, 9 rows x 12 cells of 26 bytes (like gArrowCells);
+@gRocketCells gRockets (+$af8) holds pointers to the cells that contain a rocket.
+F_0c184 Rockets_PlayLaunch
+@Rockets_PlayLaunch Rockets_PlayLaunch() : end-of-round animation of the rockets taking off
+@Rockets_PlayLaunch (up to 32 moving objects of 12 bytes, rendered frame by frame).
+
+# ---- Input ----
+B_1bbac gIkbdState
+F_00b74 Key_GetState
+F_0a0f2 Button_Update
+F_0a122 Keys_UpdateButtons
+B_2795c gMenuInput
+F_08542 MenuInput_Update
+F_0bb7c Players_AllComputer
+F_0baa0 Players_AnyKey
+F_0bae6 Players_AnyPadButton
+@Key_GetState d0 = Key_GetState(d0 = scancode) : non zero while the key is held.
+@Button_Update Button_Update(a0 = button, d0 = down) : button state byte (+1):
+@Button_Update   bit 0 held, bit 1 pressed this frame (3 = just pressed), 4 = just released.
+@Keys_UpdateButtons Keys_UpdateButtons(a0 = device) : 12 buttons, scancode at +$2e+2n,
+@Keys_UpdateButtons state at +$2f+2n (see Button_Update).
+@MenuInput_Update MenuInput_Update() : read the 3 input devices of the menus and merge
+@MenuInput_Update them into one set of 12 buttons (first device with a non-zero state wins).
+@Players_AllComputer d0 = Players_AllComputer() : true when no human is playing (demo).
+@Players_AnyKey d0 = Players_AnyKey(d0 = button) : OR of that key's state over human players.
+@Players_AnyPadButton d0 = Players_AnyPadButton(d0 = button) : same for the joystick/pad buttons.
+
+# ---- Puzzle arrows and undo ----
+B_2211a gPuzzleArrows
+B_223ac gUndoCount
+F_052aa PuzzleArrows_Clear
+F_052c6 PuzzleArrows_Save
+F_0b94c PuzzleArrows_Restore
+F_0533e Player_UndoArrow
+@gPuzzleArrows 16 records of 8 bytes: +0 row, +2 column, +4 direction, +6 used.
+@PuzzleArrows_Save PuzzleArrows_Save() : remember the arrows the player placed, so that
+@PuzzleArrows_Save a failed puzzle restarts with the same arrows.
+@PuzzleArrows_Restore PuzzleArrows_Restore() : place the remembered arrows again.
+@Player_UndoArrow d0 = Player_UndoArrow(d0 = player) : remove the last arrow the player
+@Player_UndoArrow placed (per-player stack of 16 x 8 bytes); false if there is none.
+F_12cbc Hud_InvalidatePlayer
+
+# ---- Mouse / cat spawning ----
+D_19fec SpawnDelays
+B_27d46 gSpawnMode
+@SpawnDelays Frames between two spawns (base, then random extra), 3 speeds:
+@SpawnDelays   base   100, 50, 25   (slow down / normal / mouse mania, speed up)
+@SpawnDelays   random  80, 40, 20
+@SpawnDelays   the 4 bytes before: challenge mode base 15 + random 10.
+@SpawnDelays Then gold mouse every 32/16/8 (+ random 32/16/8) mice,
+@SpawnDelays purple mouse every 32/16/8 (+ random 30/20/8) mice.
+@gSpawnMode Spawn mode set from the spinner event: 0 normal, 1 mouse mania,
+@gSpawnMode 2 cat mania (only cats, up to 4), 3 slow down, 4 speed up / mouse monopoly.
+@gSpawnMode Normally a new cat appears only when no cat is on the board.

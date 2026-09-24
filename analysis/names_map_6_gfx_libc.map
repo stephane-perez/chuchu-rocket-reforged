@@ -1,0 +1,330 @@
+# ===== Title screen rocket (ROCKTITL / CHUSPECH) =====
+F_147b4 Title_LoadRocket
+@Title_LoadRocket void Title_LoadRocket(void): loads ROCKTITL.BSB (rocket sprite block) and CHUSPECH.PI1
+@Title_LoadRocket (picture used as a "behind" mask), relocates the sprite block and clears the angle
+@Title_LoadRocket and the saved rocket position of both screens.
+F_1480e Title_FreeRocket
+@Title_FreeRocket void Title_FreeRocket(void): frees the rocket sprite block and the CHUSPECH picture.
+F_14828 Title_DrawRocket
+@Title_DrawRocket void Title_DrawRocket(void): one frame of the flying title rocket. Restores the old
+@Title_DrawRocket position, computes x/y from sin/cos of gTitleRocketAngle (Pure C float library),
+@Title_DrawRocket draws the frame on the back screen, remembers the position, then puts the background
+@Title_DrawRocket back wherever the CHUSPECH mask says the rocket is behind the scenery.
+F_14a66 Title_RestoreRocketBg
+@Title_RestoreRocketBg void Title_RestoreRocketBg(void): copies a 48-pixel-wide background strip
+@Title_RestoreRocketBg (sprite height) over the rocket's previous position on the back screen.
+B_2fb12 gTitleRocketSprites
+B_2fb16 gTitleRocketAngle
+B_2fb18 gTitleMaskPicture
+B_2fb1c gTitleRocketOldPos
+
+# ===== Walls (WALL.BSB / WALLSMAL.BSB) =====
+F_14ada Walls_Load
+@Walls_Load void Walls_Load(void): loads WALL.BSB and WALLSMAL.BSB, relocates them and makes 4 clones
+@Walls_Load of the big wall sprite block (headers + new empty graphics buffers), one per wall colour
+@Walls_Load scheme; the clones are filled by Walls_BuildColours (like GodLib Sprite_BlockClone).
+F_14c12 Walls_BuildAndDraw
+@Walls_BuildAndDraw void Walls_BuildAndDraw(void): builds the 4 recoloured wall sets, then draws all the
+@Walls_BuildAndDraw walls of the level onto the background picture buffer.
+F_14c2e Walls_DrawAll
+@Walls_DrawAll void Walls_DrawAll(a0 = screen): draws every wall of the level. In game mode: for each of
+@Walls_DrawAll the 12x9 cells, draws edge pieces and corner joints (via Walls_DrawPiece). In the menu:
+@Walls_DrawAll draws the small 8-pixel-per-cell level preview from the level bank wall masks.
+F_15004 Walls_DrawCell
+@Walls_DrawCell void Walls_DrawCell(d0 = cell x, d1 = cell y): redraws the wall pieces and corner joints
+@Walls_DrawCell of one cell onto the background buffer (used when the board changes during a spinner event).
+F_1523e Walls_Free
+@Walls_Free void Walls_Free(void): frees WALL/WALLSMAL and the 4 recoloured wall sets.
+F_15290 Walls_DrawPiece
+@Walls_DrawPiece void Walls_DrawPiece(a0 = screen, d0 = x, d1 = y, d2 = piece 0-7): in game mode draws
+@Walls_DrawPiece big wall piece d2 (colour set chosen by option word B_234f0) at cell (x,y) and marks the
+@Walls_DrawPiece cell dirty; otherwise draws the small preview piece (Walls_DrawSmallPiece).
+F_1531c Walls_DrawSmallPiece
+@Walls_DrawSmallPiece void Walls_DrawSmallPiece(a0 = screen, d0 = x, d1 = y, d2 = piece): draws a WALLSMAL
+@Walls_DrawSmallPiece piece at pixel (174 + 8x, 112 + 8y): the level preview of the level-select menu.
+F_15370 Walls_BuildColours
+@Walls_BuildColours void Walls_BuildColours(void): fills the 4 wall clones: every 16-pixel chunk of every
+@Walls_BuildColours WALL sprite is converted to chunky pixels, recoloured through WallColourRemap[set][16]
+@Walls_BuildColours and converted back to 4 bitplanes.
+F_15434 Gfx_ChunkyToPlanar16
+@Gfx_ChunkyToPlanar16 void Gfx_ChunkyToPlanar16(a0 = 16 colour words, a1 = out 4 plane words): packs 16
+@Gfx_ChunkyToPlanar16 pixels (one colour index 0-15 per word) into the 4 ST bitplane words.
+F_154b4 Gfx_PlanarToChunky16
+@Gfx_PlanarToChunky16 void Gfx_PlanarToChunky16(a0 = out 16 colour words, a1 = 4 plane words): unpacks a
+@Gfx_PlanarToChunky16 16-pixel ST bitplane chunk into one colour index per pixel.
+B_2fb24 gWallSprites
+B_2fb28 gWallSmallSprites
+B_2fb2c gWallColourSets
+D_1b85e WallColourRemap
+
+# ===== Splines (AtariIntro) =====
+F_15532 Spline_Eval
+@Spline_Eval void Spline_Eval(a0 = 4 control points (x,y words), d0 = step t, a1 = out point x,y):
+@Spline_Eval point = sum of the 4 control points weighted by the 4 basis weights of step t in the spline
+@Spline_Eval table (4.12 fixed point). Used by the Atari logo intro.
+B_2fb3c gSplineTable
+
+# ===== Board sprites: arrows, mice, cats, cursors, dirty cells =====
+F_15668 Cell_DrawSprite16_Unused
+@Cell_DrawSprite16_Unused void Cell_DrawSprite16_Unused(a0 = sprite, a1 = screen, d0 = cell x, d1 = cell y):
+@Cell_DrawSprite16_Unused dead code. Draws a 16x16 masked 4-plane sprite at a board cell (same loop as Arrows_Draw).
+F_156ac Arrows_Draw
+@Arrows_Draw void Arrows_Draw(a0 = screen): draws every placed arrow (rows flagged in gArrowRowMask) as a
+@Arrows_Draw 16x16 masked sprite chosen by owner colour and direction (other frame when damaged), skipping
+@Arrows_Draw blinking-off frames; marks each cell dirty. Hot path (7.5% of a demo game).
+F_15786 Gfx_OrScaledColumn16
+@Gfx_OrScaledColumn16 void Gfx_OrScaledColumn16(a0 = dest, a1 = src, d0 = lines, d1 = 16.16 step): ORs a
+@Gfx_OrScaledColumn16 16-pixel wide 4-plane column onto the screen, stretched vertically (source line =
+@Gfx_OrScaledColumn16 accumulated step). Used by the Atari logo intro.
+F_157b0 Gfx_Or32Column
+@Gfx_Or32Column void Gfx_Or32Column(a0 = dest, a1 = src, d0 = lines): ORs a 32-pixel wide 4-plane image
+@Gfx_Or32Column (16 bytes per line) onto the screen (Atari logo intro).
+F_157d4 Gfx_Or16Column
+@Gfx_Or16Column void Gfx_Or16Column(a0 = dest, a1 = src, d0 = lines): ORs a 16-pixel wide 4-plane image
+@Gfx_Or16Column (8 bytes per line) onto the screen (Atari logo intro).
+F_157f0 Fireworks_Update
+@Fireworks_Update void Fireworks_Update(a0 = screen): moves and plots the 8 fireworks of the win screen:
+@Fireworks_Update wait, rise with gravity, burst into 31 random particles, particles fall and are plotted
+@Fireworks_Update as pixels until all have left the screen, then restart. Own random seed gFireworkSeed.
+F_159f2 Sprite_BlitDraw16_Unused
+@Sprite_BlitDraw16_Unused void Sprite_BlitDraw16_Unused(a0 = sprite, a1 = screen, d0 = x, d1 = y): dead code.
+@Sprite_BlitDraw16_Unused Draws a 16x16 masked sprite with the STE blitter (mask AND pass, then 4 plane OR passes).
+F_15b0a Mice_Draw
+@Mice_Draw void Mice_Draw(a0 = screen): draws every active mouse with the STE blitter (16x16, frame from
+@Mice_Draw owner/direction/state and animation), clipped at the top, and marks the covered cells dirty.
+F_15db6 Gfx_DrawMaskedImage
+@Gfx_DrawMaskedImage void Gfx_DrawMaskedImage(a0 = image {gfx*, ?, line bytes.w@6, width@8, height@10},
+@Gfx_DrawMaskedImage a1 = screen, d0 = x, d1 = y): CPU draw of an interleaved mask+4-plane image at any x
+@Gfx_DrawMaskedImage (shifted when x is not a multiple of 16). Used by the front-end menus.
+F_15ea0 Cursors_DrawCellMarkers
+@Cursors_DrawCellMarkers void Cursors_DrawCellMarkers(a0 = screen): for each active player whose cursor is on
+@Cursors_DrawCellMarkers the board, draws the 16x16 cell marker sprite under it (frame from player state) and
+@Cursors_DrawCellMarkers marks the cell dirty.
+F_15f46 Cats_Draw
+@Cats_Draw void Cats_Draw(a0 = screen): draws every active cat with the STE blitter (16x20 sprites, frame from
+@Cats_Draw direction/state and animation), clipped at the top, and marks the covered cells dirty.
+F_1698c Dirty_MarkEntity
+@Dirty_MarkEntity void Dirty_MarkEntity(a0 = entity with 16.16 x,y): marks dirty the 1-4 board cells (and the
+@Dirty_MarkEntity row above) that a sprite at this position covers, so they are restored next frame.
+B_2fb0a gDirtyMaskPtr
+B_2ee6e gCellScreenOffsets
+B_2eb4e gScreenLineOffsets
+D_1b954 gFireworkSeed
+D_1964c BlitLeftMasks
+D_1966a BlitRightMasksM1
+D_1966c BlitRightMasks
+
+# ===== Screen block copy / clear =====
+F_161d0 Panel_Copy128x75
+@Panel_Copy128x75 void Panel_Copy128x75(a0 = src, a1 = dst): copies a 128x75 pixel 4-plane block
+@Panel_Copy128x75 (64 bytes per line, pitch 160). Level-select preview panel.
+F_16200 Panel_Copy128x8
+@Panel_Copy128x8 void Panel_Copy128x8(a0 = src, a1 = dst): copies a 128x8 pixel block (pitch 160).
+@Panel_Copy128x8 Level-select name strip.
+F_16230 Panel_CopyPreview
+@Panel_CopyPreview void Panel_CopyPreview(a0 = src screen, a1 = dst screen): copies the 128x75 block at
+@Panel_CopyPreview x=160, y=110 (level preview area) from one screen to the other.
+F_16268 Screen_Copy16x16
+@Screen_Copy16x16 void Screen_Copy16x16(a0 = src, a1 = dst, d0 = y): copies a 16x16 4-plane block starting at
+@Screen_Copy16x16 line y (negative y clamped to 0, clipped at line 199).
+F_162a6 Screen_CopyPlane0Rect
+@Screen_CopyPlane0Rect void Screen_CopyPlane0Rect(a0 = src, a1 = dst, d0 = width px, d1 = height): copies only
+@Screen_CopyPlane0Rect bitplane 0 of a rectangle (end-of-round screens with the starfield).
+F_162da Screen_Clear
+@Screen_Clear void Screen_Clear(a0 = screen): clears 32000 bytes with movem.
+F_1636a Screen_Copy
+@Screen_Copy void Screen_Copy(a0 = src, a1 = dst): copies a full 32000-byte screen with movem.
+F_164ba Starfield_MoveAndPlot
+@Starfield_MoveAndPlot void Starfield_MoveAndPlot(a0 = screen, d0 = centre x, d1 = centre y, d2 = max x, stack.w = max y):
+@Starfield_MoveAndPlot moves the 3D stars (perspective table), plots them in plane 0, and respawns stars that
+@Starfield_MoveAndPlot leave the area at a random position/speed (own seed gStarfieldSeed).
+F_165a4 Screen_ClearPlane0Lines
+@Screen_ClearPlane0Lines void Screen_ClearPlane0Lines(a0 = screen line, d0 = lines - 1): clears bitplane 0 of
+@Screen_ClearPlane0Lines whole 320-pixel lines (erases the starfield).
+D_1b958 gStarfieldSeed
+
+# ===== Board background restore (dirty cells) =====
+F_16604 Board_RestoreDirtyCells
+@Board_RestoreDirtyCells void Board_RestoreDirtyCells(a0 = 9 dirty row masks, a1 = background, stack = screen):
+@Board_RestoreDirtyCells copies back every dirty 16x16 board cell (bits 1-12 of each row) from the background
+@Board_RestoreDirtyCells and clears those bits. With OPT_BLIT and a blitter, jumps to Blit_16604.
+F_16706 Board_RestoreDirtyBorder
+@Board_RestoreDirtyBorder void Board_RestoreDirtyBorder(a0 = dirty masks, a1 = background, stack = screen):
+@Board_RestoreDirtyBorder restores the dirty border tiles: columns 0 and 13 of the 9 rows (bits cleared) and a
+@Board_RestoreDirtyBorder 10th row of 14 tiles. With OPT_BLIT and a blitter, jumps to Blit_16706.
+
+# ===== Pure C printf engine =====
+F_169e2 PureC_DoPrintf
+@PureC_DoPrintf int PureC_DoPrintf(a0 = format, a1 = args, stack = output callback(a0 = chars, d0 = count)):
+@PureC_DoPrintf Pure C printf core: parses flags (- + space # 0), width, precision (* allowed), l/h, and
+@PureC_DoPrintf dispatches %c %s %d %i %u %x %X %p %o %n %e %E %f %g %G. Returns chars written or -1.
+F_16cca PureC_PrintfExp
+@PureC_PrintfExp int PureC_PrintfExp(a0 = double*, a1 = out cb, d0 = flags, d1 = width, d2 = precision): %e / %E.
+F_16e52 PureC_PrintfFixed
+@PureC_PrintfFixed int PureC_PrintfFixed(a0 = double*, a1 = out cb, d0 = flags, d1 = width, d2 = precision): %f.
+F_17098 PureC_PrintfGeneral
+@PureC_PrintfGeneral int PureC_PrintfGeneral(a0 = double*, a1 = out cb, d0 = flags, d1 = width, d2 = prec): %g / %G
+@PureC_PrintfGeneral (chooses %e or %f style using log10; prints NaN / +INF / -INF).
+F_18c98 Str_Sprintf
+@Str_Sprintf int Str_Sprintf(a0 = out buffer, a1 = format, ... on stack): Pure C sprintf; writes through
+@Str_Sprintf PureC_DoPrintf with a copy-to-buffer callback, then adds the final 0.
+F_18cca PureC_PrintfSigned
+@PureC_PrintfSigned int PureC_PrintfSigned(d0 = value, d1 = flags, d2 = width, a0 = out cb, stack = prec): %d / %i.
+F_18d1c PureC_PrintfUnsigned
+@PureC_PrintfUnsigned int PureC_PrintfUnsigned(d0 = value, d1 = flags, d2 = width, a0 = cb, stack = prec): %u.
+F_18d2e PureC_PrintfHex
+@PureC_PrintfHex int PureC_PrintfHex(d0 = value, d1 = flags, d2 = width, a0 = cb, stack = prec): %x %X %p
+@PureC_PrintfHex ("0x"/"0X" prefix with #).
+F_18d6e PureC_PrintfOctal
+@PureC_PrintfOctal int PureC_PrintfOctal(d0 = value, d1 = flags, d2 = width, a0 = cb, stack = prec): %o. Its
+@PureC_PrintfOctal tail is the shared integer formatter (ultoa, sign/prefix, zero and space padding).
+F_18e18 PureC_PrintfChar
+@PureC_PrintfChar int PureC_PrintfChar(a0 = char buffer, a1 = out cb, d0 = flags, d1 = width): %c.
+F_18e28 PureC_PrintfString
+@PureC_PrintfString int PureC_PrintfString(a0 = string, a1 = out cb, d0 = flags, d1 = width, d2 = prec): %s
+@PureC_PrintfString with left/right padding.
+F_18ee4 PureC_PrintfZeros
+@PureC_PrintfZeros void PureC_PrintfZeros(a0 = out cb, d0 = count): outputs count '0' characters.
+F_18eee PureC_PrintfSpaces
+@PureC_PrintfSpaces void PureC_PrintfSpaces(a0 = out cb, d0 = count): outputs count spaces.
+
+# ===== Pure C floating point library ("Xmath by d'ART", 80-bit extended) =====
+F_172b4 PureC_Ecvt
+@PureC_Ecvt char * PureC_Ecvt(a0 = double*, d0 = ndigits, a1 = &decpt, stack = &sign): converts a float to
+@PureC_Ecvt a digit string in the static buffer gFloatDigitBuf (used by %e %f %g).
+F_172ea PureC_FloatToDigits
+@PureC_FloatToDigits char * PureC_FloatToDigits(a0 = double*, d0 = ndigits, d1 = mode, a1 = buffer, stack =
+@PureC_FloatToDigits &decpt, &sign): ecvt/fcvt core: scales by powers of ten, emits rounded decimal digits,
+@PureC_FloatToDigits returns "NaN"/"+INF"/"-INF" for special values.
+F_17420 PureC_Cos
+@PureC_Cos double PureC_Cos(double x): cosine, computed as sin(pi/2 - x); uses the 68881 (FCOS) when an
+@PureC_Cos FPU is present (gFloatFlags bit 7).
+F_1745c PureC_Sin
+@PureC_Sin double PureC_Sin(double x): sine; FPU (FSIN) when present, else falls into PureC_SinSoft.
+F_17474 PureC_SinSoft
+@PureC_SinSoft void PureC_SinSoft(a0 = x, a1 = result): software sine: t = tan(x/2),
+@PureC_SinSoft sin = 2t / (1 + t*t).
+F_174fc PureC_TanSoft
+@PureC_TanSoft void PureC_TanSoft(a0 = x, a1 = result): software tangent (range reduction + rational
+@PureC_TanSoft approximation). The hidden tan() entry (FPU FTAN) sits just before it.
+F_17894 PureC_FPow10
+@PureC_FPow10 void PureC_FPow10(a0 = result, d0 = n): builds 10^n (|n| <= 6144) from power-of-ten tables;
+@PureC_FPow10 negative n gives the reciprocal.
+F_17b0e PureC_LogKernel
+@PureC_LogKernel void PureC_LogKernel(...): series/polynomial part of the natural logarithm (used by PureC_LogSoft).
+F_17bec PureC_LogSoft
+@PureC_LogSoft void PureC_LogSoft(a0 = x, a1 = result): software natural log ("log"): splits exponent and
+@PureC_LogSoft mantissa; log(0) gives -INF + pole error, log(<0) gives NaN + domain error.
+F_17cb0 PureC_Log10
+@PureC_Log10 double PureC_Log10(double x): log10 = ln(x) * (1/ln 10); FPU FLOG10 when present.
+F_17da8 PureC_FAbs
+@PureC_FAbs void PureC_FAbs(a0 = x, a1 = result): copies a float with its sign bit cleared.
+F_17dd2 PureC_Sqrt
+@PureC_Sqrt double PureC_Sqrt(double x): square root ("sqrt"); FPU FSQRT when present, domain error if x < 0.
+F_18012 PureC_FSquare
+@PureC_FSquare void PureC_FSquare(a0 = x, a1 = result): software x*x ("square"), overflow checked.
+F_180fa PureC_FSubOne
+@PureC_FSubOne void PureC_FSubOne(a0 = x, a1 = result): x - 1.0.
+F_180fe PureC_FSub
+@PureC_FSub void PureC_FSub(a0 = x, a1 = y): software subtraction x - y (negates y then shares the add code).
+F_1810e PureC_FAdd
+@PureC_FAdd void PureC_FAdd(a0 = x, a1 = y): addition; FPU FADD when present, else PureC_FAddSoft.
+F_18120 PureC_FAddOne
+@PureC_FAddOne void PureC_FAddOne(a0 = x, a1 = result): x + 1.0.
+F_18124 PureC_FAddSoft
+@PureC_FAddSoft void PureC_FAddSoft(a0 = x, a1 = y): software 80-bit addition (align, add, normalise, round).
+F_18332 PureC_FMul
+@PureC_FMul void PureC_FMul(a0 = x, a1 = y): multiplication ("mul"); FPU FMUL when present.
+F_18342 PureC_FMulSoft
+@PureC_FMulSoft void PureC_FMulSoft(a0 = x, a1 = y): software 80-bit multiplication.
+F_18490 PureC_FMantMul
+@PureC_FMantMul PureC_FMantMul: 64x64-bit mantissa multiply helper shared by multiply/divide (registers only).
+F_18564 PureC_FDiv
+@PureC_FDiv void PureC_FDiv(a0 = x, a1 = y): division ("div"); FPU FDIV when present.
+F_18574 PureC_FDivSoft
+@PureC_FDivSoft void PureC_FDivSoft(a0 = x, a1 = y): software 80-bit division.
+F_1884c PureC_FUnpack
+@PureC_FUnpack PureC_FUnpack(a0 = x): loads a float into d0 (sign+exponent) and d1:d2 (mantissa),
+@PureC_FUnpack normalising denormals; condition codes say zero / infinity / NaN / normal.
+F_188c0 PureC_FSetMinusInf
+@PureC_FSetMinusInf void PureC_FSetMinusInf(a1 = result): stores -INF.
+F_188cc PureC_FSetNaN
+@PureC_FSetNaN void PureC_FSetNaN(a1 = result): stores NaN.
+F_188da PureC_FPoleError
+@PureC_FPoleError void PureC_FPoleError(a1 = result, stack = function name): result = -INF and reports a
+@PureC_FPoleError singularity error (matherr type 3).
+F_188e6 PureC_FDomainError
+@PureC_FDomainError void PureC_FDomainError(a1 = result, stack = function name): result = NaN and reports a
+@PureC_FDomainError domain error (matherr type 1).
+F_18972 PureC_FNormalize
+@PureC_FNormalize PureC_FNormalize(d0 = exponent, d1:d2 = mantissa): shifts the mantissa left until its top
+@PureC_FNormalize bit is set, decrementing the exponent.
+F_1899e PureC_FRangeError
+@PureC_FRangeError PureC_FRangeError(stack = function name): overflow/underflow of a result: gives INF, the
+@PureC_FRangeError largest value or 0 depending on gFloatExcept rounding flags, and reports the error.
+F_18aa4 PureC_MathError
+@PureC_MathError PureC_MathError(d0 = error type, a0/a1 = arguments, stack = name): calls the user handler
+@PureC_MathError from gMathErrHandlers if enabled, else sets gErrno to EDOM (33) or ERANGE (34).
+F_18b3a PureC_FToLong
+@PureC_FToLong long PureC_FToLong(a0 = x): float to 32-bit integer (truncates, saturates at 0x7fffffff).
+F_18b7a PureC_LongToF
+@PureC_LongToF void PureC_LongToF(a0 = result, d0 = long): 32-bit integer to float. The FPU detection
+@PureC_LongToF supervisor routine (bus-error trap on the SFP004 at $fffffa42) follows it in memory.
+F_18c0c PureC_FpuDetect
+@PureC_FpuDetect void PureC_FpuDetect(void): runs the FPU test in supervisor mode (XBIOS Supexec); sets
+@PureC_FpuDetect gFloatFlags bit 15 when a 68881 SFP004 card answers. Called at program start.
+D_1b970 gFloatFlags
+D_1b971 gFloatExcept
+D_1b972 gFpuPresent
+D_1b95c gMathErrHandlers
+B_2fb40 gFloatDigitBuf
+D_19602 gErrno
+
+# ===== Pure C string / number conversion =====
+F_18f30 PureC_Itoa
+@PureC_Itoa char * PureC_Itoa(d0.w = value, a0 = buffer, d1 = radix 2-36): signed 16-bit integer to string
+@PureC_Itoa ("-" only in base 10); bad radix sets gErrno = EDOM.
+F_18fb2 Str_Compare
+@Str_Compare int Str_Compare(a0 = s1, a1 = s2): strcmp; returns -1, 0 or 1.
+F_19004 Str_Copy
+@Str_Copy char * Str_Copy(a0 = dst, a1 = src): strcpy; returns dst.
+F_1904a PureC_Strtoul
+@PureC_Strtoul unsigned long PureC_Strtoul(a0 = string, a1 = &end (or 0), d0 = base 0/2-36): strtoul; skips
+@PureC_Strtoul spaces, base 0 detects 0 / 0x prefixes; overflow gives -1 and gErrno = ERANGE.
+F_1911c PureC_Ultoa
+@PureC_Ultoa char * PureC_Ultoa(d0 = value, a0 = buffer, d1 = radix 2-36): unsigned long to lowercase string.
+
+# ===== Pure C runtime: heap, long arithmetic =====
+F_191b6 PureC_FreeHeap
+@PureC_FreeHeap void PureC_FreeHeap(void): at exit, returns every block of the two Pure C heap lists to
+@PureC_FreeHeap GEMDOS (Mfree).
+D_1b974 gHeapBlocks
+D_1b978 gHeapBlocks2
+F_193ec PureC_LongMul
+@PureC_LongMul long PureC_LongMul(d0, d1): 32x32 -> 32-bit multiply (low part, valid signed or unsigned).
+F_19414 PureC_LongDivU
+@PureC_LongDivU unsigned long PureC_LongDivU(d0 = dividend, d1 = divisor): unsigned 32-bit division.
+F_19466 PureC_LongMulS
+@PureC_LongMulS long PureC_LongMulS(d0, d1): signed 32-bit multiply (sign handled separately).
+F_194b0 PureC_LongDivS
+@PureC_LongDivS long PureC_LongDivS(d0 = dividend, d1 = divisor): signed 32-bit division.
+
+# ===== GEMDOS / XBIOS trap wrappers =====
+F_19524 Gemdos_Super
+@Gemdos_Super long Gemdos_Super(a0 = stack): GEMDOS $20 Super (enter/leave supervisor mode).
+F_19548 Gemdos_Mfree
+@Gemdos_Mfree long Gemdos_Mfree(a0 = block): GEMDOS $49 Mfree.
+F_19558 Gemdos_Malloc
+@Gemdos_Malloc void * Gemdos_Malloc(d0 = size): GEMDOS $48 Malloc; returns the block in a0.
+F_1956a Gemdos_Fwrite
+@Gemdos_Fwrite long Gemdos_Fwrite(d0 = handle, d1 = count, a0 = buffer): GEMDOS $40 Fwrite.
+F_19592 Gemdos_Fread
+@Gemdos_Fread long Gemdos_Fread(d0 = handle, d1 = count, a0 = buffer): GEMDOS $3F Fread.
+F_195a4 Gemdos_Fclose
+@Gemdos_Fclose long Gemdos_Fclose(d0 = handle): GEMDOS $3E Fclose.
+F_195b4 Gemdos_Fopen
+@Gemdos_Fopen long Gemdos_Fopen(a0 = name, d0 = mode): GEMDOS $3D Fopen; returns handle or error.
+F_195c6 Gemdos_Fcreate
+@Gemdos_Fcreate long Gemdos_Fcreate(a0 = name, d0 = attributes): GEMDOS $3C Fcreate.
+F_195f2 Xbios_Blitmode
+@Xbios_Blitmode short Xbios_Blitmode(d0 = mode, -1 = query): XBIOS $40 Blitmode (blitter detection/switch).
