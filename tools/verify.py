@@ -50,7 +50,7 @@ try:
         print('diff   :', line)
     ok &= r.returncode == 0
 except ImportError:
-    print('diff   : (module unicorn absent : pip install unicorn)')
+    print('diff   : (unicorn module missing: pip install unicorn)')
 subprocess.run([sys.executable, os.path.join(ROOT, 'build.py')], capture_output=True)
 print('RESULT :', 'ALL OK' if ok else 'FAILURE')
 sys.exit(0 if ok else 1)

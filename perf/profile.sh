@@ -1,7 +1,7 @@
 #!/bin/sh
-# profile.sh <dossier_jeu> <tag> [option_asm] [debut=4100] [fin=5700] [machine=ste]
-# Profil CPU Hatari d'une fenetre de VBL, puis agregation par fonction.
-#   ex. : perf/profile.sh out base            (build sans option)
+# profile.sh <game_dir> <tag> [asm_option] [start=4100] [end=5700] [machine=ste]
+# Hatari CPU profile of a window of VBLs, then aggregation by function.
+#   e.g. perf/profile.sh out base            (build without option)
 #         perf/profile.sh out opt OPTIM
 here=$(cd "$(dirname "$0")" && pwd); root=$(dirname "$here")
 d=$(cd "$1" && pwd); tag=$2; def=$3; a=${4:-4100}; b=${5:-5700}; m=${6:-ste}

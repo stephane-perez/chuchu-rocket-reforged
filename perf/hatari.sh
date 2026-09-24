@@ -1,6 +1,6 @@
 #!/bin/sh
-# hatari.sh <dossier_jeu> <fichier_commandes_debogueur> <nb_vbl> [machine=ste]
-# Hatari sans ecran, rapide, avec commandes du debogueur (--parse).
+# hatari.sh <game_dir> <debugger_command_file> <vbl_count> [machine=ste]
+# Hatari without a display, fast forward, with debugger commands (--parse).
 here=$(cd "$(dirname "$0")" && pwd); root=$(dirname "$here")
 mkdir -p "$here/.hatari"
 HOME="$here/.hatari" SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy hatari \

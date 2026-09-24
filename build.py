@@ -5,7 +5,7 @@
   python build.py -D SKIP_INTRO    -> same, with a conditional-assembly option
   python build.py --check          -> build, then compare with the originals
   python build.py --reforged       -> version de reference : -D REFORGED + assets de mods/reforged
-  python build.py --overlay DIR    -> les fichiers de DIR remplacent ceux de assets/
+  python build.py --overlay DIR    -> the files of DIR replace those of assets/
 
 Needs vasmm68k_mot (vasm, Motorola syntax) in the PATH, Python 3 and Pillow.
 The executable is written unpacked (Pack-Ice is not needed to run it)."""
